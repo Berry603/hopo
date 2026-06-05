@@ -1,0 +1,147 @@
+.main-layout {
+  height: 100vh;
+
+  // 侧边栏
+  .main-sider {
+    background: @sidebar-bg !important;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+
+    // Logo区域
+    .sider-logo {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      background: @sidebar-logo-bg;
+      transition: @transition-base;
+
+      .logo-icon {
+        font-size: 24px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+      }
+
+      .logo-text {
+        margin-left: 12px;
+        color: #fff;
+        
+        .logo-title {
+          font-size: 16px;
+          font-weight: 700;
+          line-height: 1.2;
+        }
+
+        .logo-subtitle {
+          font-size: 12px;
+          opacity: 0.8;
+          line-height: 1.2;
+        }
+      }
+    }
+
+    // 菜单
+    .sider-menu {
+      margin-top: 8px;
+      border-right: none;
+    }
+  }
+
+  // 主内容区域
+  .main-content-area {
+    background: @bg-color;
+
+    // 顶部导航
+    .main-header {
+      background: @header-bg;
+      height: @header-height;
+      line-height: @header-height;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: @header-shadow;
+      z-index: 9;
+
+      .header-left {
+        display: flex;
+        align-items: center;
+
+        .header-trigger {
+          font-size: 18px;
+          width: 40px;
+          height: 40px;
+        }
+
+        .header-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: @text-color-primary;
+          margin-left: 12px;
+        }
+      }
+
+      .header-right {
+        .header-icon {
+          font-size: 18px;
+          color: @text-color-secondary;
+          cursor: pointer;
+          transition: @transition-fast;
+
+          &:hover {
+            color: @primary-color;
+          }
+        }
+
+        .user-info {
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: @border-radius-base;
+          transition: @transition-fast;
+
+          &:hover {
+            background: @bg-color-hover;
+          }
+
+          .user-name {
+            font-size: @font-size-base;
+            color: @text-color-primary;
+          }
+        }
+      }
+    }
+
+    // 内容区域
+    .main-content {
+      margin: 24px;
+      min-height: calc(100vh - @header-height - 48px);
+      background: @bg-color;
+      overflow-y: auto;
+    }
+  }
+}
+
+// 响应式适配
+@media (max-width: 768px) {
+  .main-layout {
+    .main-content-area {
+      .main-header {
+        padding: 0 16px;
+        
+        .header-title {
+          display: none;
+        }
+      }
+
+      .main-content {
+        margin: 16px;
+        min-height: calc(100vh - @header-height - 32px);
+      }
+    }
+  }
+}

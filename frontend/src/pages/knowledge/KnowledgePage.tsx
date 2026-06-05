@@ -1,0 +1,387 @@
+import React, { useState, useMemo } from 'react';
+import {
+  Layout, Tabs, Table, Button, Space, Tag, Input, Select, Card,
+  Modal, Form, Drawer, Descriptions, Rate, Popconfirm, message,
+  Row, Col, List, Typography, Empty, Divider, Tooltip, DatePicker,
+  Upload,
+} from 'antd';
+import type { UploadProps } from 'antd';
+import {
+  BookOutlined, SearchOutlined, FileTextOutlined, PlusOutlined,
+  EyeOutlined, EditOutlined, DeleteOutlined, StarOutlined,
+  CloudUploadOutlined, TagsOutlined, FilePdfOutlined,
+  TeamOutlined, BulbOutlined, ReloadOutlined, DownloadOutlined,
+  SwapOutlined, UploadOutlined, InboxOutlined,
+} from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import './KnowledgePage.less';
+
+const { Content } = Layout;
+const { TextArea } = Input;
+const { Text, Title } = Typography;
+
+// ---- 模拟数据 ----
+interface KnowledgeItem {
+  id: string; title: string; type: 'regulation' | 'case' | 'template' | 'guide' | 'article';
+  category: string; author: string; createdAt: string; updatedAt: string;
+  tags: string[]; content: string; rating: number; views: number; status: 'published' | 'draft';
+  fileType?: string; relatedTo?: string; attachments?: UploadFile[];
+}
+interface UploadFile { uid: string; name: string; status: 'done' | 'uploading' | 'error'; url?: string; size?: number; type?: string; }
+const mockKnowledge: KnowledgeItem[] = [
+  { id: 'KB-001', title: '企业内部控制基本规范（2025版）', type: 'regulation', category: '内控规范',
+    author: '法规库', createdAt: '2025-01-01', updatedAt: '2025-06-01', tags: ['内控', '法规', '规范'],
+    content: '财政部发布的企业内部控制基本规范及配套指引，适用于上市公司及大中型企业...', rating: 4.8, views: 1523, status: 'published', fileType: 'PDF' },
+  { id: 'KB-002', title: '采购舞弊审计案例：虚假供应商识别', type: 'case', category: '采购审计',
+    author: '张敏', createdAt: '2025-03-15', updatedAt: '2025-04-20', tags: ['采购', '舞弊', '案例'],
+    content: '本案例记录了采购部虚假供应商的审计发现过程，通过交叉比对工商信息...', rating: 4.5, views: 890, status: 'published', relatedTo: 'AUD-20250002' },
+  { id: 'KB-003', title: '费用报销审计底稿模板 V3', type: 'template', category: '底稿模板',
+    author: '李芳', createdAt: '2025-02-10', updatedAt: '2025-05-15', tags: ['底稿', '模板', '费用'],
+    content: '标准费用报销审计底稿模板，包含差旅费、招待费、办公费等检查清单...', rating: 4.3, views: 2341, status: 'published', fileType: 'XLSX' },
+  { id: 'KB-004', title: '应收账款审计实务指南', type: 'guide', category: '审计指南',
+    author: '王刚', createdAt: '2025-04-01', updatedAt: '2025-04-01', tags: ['应收', '审计', '指南'],
+    content: '详细介绍了应收账款审计的方法论，包括函证程序、账龄分析...', rating: 4.0, views: 567, status: 'published' },
+  { id: 'KB-005', title: 'ISO 37301:2025 合规管理体系要求', type: 'regulation', category: '国际标准',
+    author: '法规库', createdAt: '2025-03-01', updatedAt: '2025-03-01', tags: ['ISO', '合规', '国际标准'],
+    content: '最新版ISO合规管理体系标准，涵盖组织环境、领导力、策划...', rating: 4.6, views: 400, status: 'published', fileType: 'PDF' },
+  { id: 'KB-006', title: '固定资产盘点流程优化案例', type: 'case', category: '资产管理',
+    author: '陈婷', createdAt: '2025-05-10', updatedAt: '2025-05-20', tags: ['固定资产', '盘点', '案例'],
+    content: '通过RFID技术实现固定资产自动化盘点，盘点效率提升80%的实践经验...', rating: 4.2, views: 320, status: 'published', relatedTo: 'AUD-20250003' },
+  { id: 'KB-007', title: '审计报告标准模板', type: 'template', category: '报告模板',
+    author: '审计部', createdAt: '2025-01-20', updatedAt: '2025-06-01', tags: ['报告', '模板', '标准'],
+    content: '标准化审计报告模板，包含执行摘要、审计范围、发现、建议、整改要求等...', rating: 4.7, views: 3456, status: 'published', fileType: 'DOC' },
+  { id: 'KB-008', title: 'IT系统审计检查清单', type: 'guide', category: 'IT审计',
+    author: '刘洋', createdAt: '2025-06-01', updatedAt: '2025-06-01', tags: ['IT', '系统', '检查清单'],
+    content: 'IT一般控制和应用控制检查清单，覆盖访问控制、变更管理、系统运维...', rating: 4.1, views: 180, status: 'draft' },
+];
+
+const typeMap: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
+  regulation: { color: 'red', text: '法规', icon: <BookOutlined /> },
+  case: { color: 'blue', text: '案例', icon: <FileTextOutlined /> },
+  template: { color: 'green', text: '模板', icon: <FilePdfOutlined /> },
+  guide: { color: 'orange', text: '指南', icon: <BulbOutlined /> },
+  article: { color: 'purple', text: '文章', icon: <StarOutlined /> },
+};
+
+const KnowledgePage: React.FC = () => {
+  const [items, setItems] = useState<KnowledgeItem[]>(mockKnowledge);
+  const [activeTab, setActiveTab] = useState('search');
+  const [searchText, setSearchText] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
+  const [form] = Form.useForm();
+  const [messageApi, contextHolder] = message.useMessage();
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+
+  const filteredItems = useMemo(() => {
+    return items.filter(i => {
+      if (searchText && !i.title.includes(searchText) && !i.tags.some(t => t.includes(searchText)) && !i.category.includes(searchText)) return false;
+      if (typeFilter.length > 0 && !typeFilter.includes(i.type)) return false;
+      return true;
+    });
+  }, [items, searchText, typeFilter]);
+
+  // 法规筛选
+  const regulations = useMemo(() => items.filter(i => i.type === 'regulation'), [items]);
+  const cases = useMemo(() => items.filter(i => i.type === 'case'), [items]);
+
+  const handleView = (record: KnowledgeItem) => {
+    setSelectedItem(record);
+    setDrawerVisible(true);
+  };
+
+  const handleAdd = () => {
+    setEditingItem(null);
+    form.resetFields();
+    setFileList([]);
+    setModalVisible(true);
+  };
+
+  const handleEdit = (record: KnowledgeItem) => {
+    setEditingItem(record);
+    form.setFieldsValue(record);
+    setFileList(record.attachments || []);
+    setModalVisible(true);
+  };
+
+  const handleDelete = (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+    messageApi.success('已删除');
+  };
+
+  const handleModalOk = async () => {
+    try {
+      const values = await form.validateFields();
+      if (editingItem) {
+        setItems(prev => prev.map(i => i.id === editingItem.id ? { ...i, ...values, updatedAt: new Date().toISOString().split('T')[0], attachments: fileList } : i));
+        messageApi.success('已更新');
+      } else {
+        const newItem: KnowledgeItem = {
+          id: `KB-${Date.now()}`,
+          ...values,
+          author: '当前用户',
+          createdAt: new Date().toISOString().split('T')[0],
+          updatedAt: new Date().toISOString().split('T')[0],
+          rating: 0, views: 0,
+          attachments: fileList,
+        };
+        setItems(prev => [newItem, ...prev]);
+        messageApi.success('已创建');
+      }
+      setModalVisible(false);
+    } catch {}
+  };
+
+  // 通用列表渲染
+  const renderKnowledgeList = (list: KnowledgeItem[]) => (
+    <List grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 4 }}
+      dataSource={list}
+      renderItem={(item: KnowledgeItem) => (
+        <List.Item>
+          <Card hoverable size="small" actions={[
+            <Tooltip title="查看"><EyeOutlined onClick={() => handleView(item)} /></Tooltip>,
+            <Tooltip title="编辑"><EditOutlined onClick={() => handleEdit(item)} /></Tooltip>,
+            <Tooltip title="删除"><Popconfirm title="确定删除?" onConfirm={() => handleDelete(item.id)}><DeleteOutlined style={{ color: '#f5222d' }} /></Popconfirm></Tooltip>,
+          ]}>
+            <Card.Meta
+              title={<Space><Tag color={typeMap[item.type]?.color}>{typeMap[item.type]?.text}</Tag><Text ellipsis style={{ maxWidth: 180 }}>{item.title}</Text></Space>}
+              description={
+                <div>
+                  <Text type="secondary" ellipsis style={{ display: 'block', minHeight: 40 }}>{item.content}</Text>
+                  <Space size={4} style={{ marginTop: 8 }}>{item.tags.map(t => <Tag key={t} style={{ fontSize: 11 }}>{t}</Tag>)}</Space>
+                  <Row justify="space-between" style={{ marginTop: 8 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{item.author}</Text>
+                    <Space size={8}>
+                      <Text type="secondary" style={{ fontSize: 12 }}><StarOutlined /> {item.rating}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}><EyeOutlined /> {item.views}</Text>
+                    </Space>
+                  </Row>
+                </div>
+              }
+            />
+          </Card>
+        </List.Item>
+      )}
+    />
+  );
+
+  // 常见列
+  const baseColumns: ColumnsType<KnowledgeItem> = [
+    { title: '编号', dataIndex: 'id', width: 110 },
+    { title: '标题', dataIndex: 'title', ellipsis: true, render: (t, r) => <a onClick={() => handleView(r)}>{t}</a> },
+    { title: '类型', dataIndex: 'type', width: 80, render: (t: string) => <Tag color={typeMap[t]?.color}>{typeMap[t]?.text}</Tag> },
+    { title: '分类', dataIndex: 'category', width: 100 },
+    { title: '作者', dataIndex: 'author', width: 80 },
+    { title: '更新时间', dataIndex: 'updatedAt', width: 110 },
+    { title: '评分', dataIndex: 'rating', width: 80, render: (v: number) => <Rate disabled defaultValue={v} style={{ fontSize: 14 }} /> },
+    { title: '浏览', dataIndex: 'views', width: 70 },
+  ];
+
+  return (
+    <Layout>
+      {contextHolder}
+      <div className="page-header">
+        <h2 className="page-title">📚 知识管理中心</h2>
+        <p className="page-subtitle">审计知识沉淀、检索和复用</p>
+      </div>
+      <Content className="page-content">
+        <Tabs defaultActiveKey="search" activeKey={activeTab} onChange={setActiveTab} items={[
+          {
+            key: 'search',
+            label: <span><SearchOutlined /> 知识检索</span>,
+            children: (
+              <div className="content-card">
+                {/* 搜索栏 */}
+                <Row gutter={16} style={{ marginBottom: 16 }}>
+                  <Col flex="auto">
+                    <Input.Search placeholder="搜索标题、标签、分类..." allowClear size="large"
+                      value={searchText} onChange={e => setSearchText(e.target.value)}
+                      prefix={<SearchOutlined />}
+                      enterButton="搜索" />
+                  </Col>
+                  <Col>
+                    <Select placeholder="知识类型" allowClear mode="multiple" value={typeFilter}
+                      onChange={setTypeFilter} style={{ width: 200 }}
+                      options={Object.entries(typeMap).map(([k, v]) => ({ value: k, label: v.text }))} />
+                  </Col>
+                  <Col>
+                    <Button type="primary" icon={<PlusOutlined />} size="large" onClick={handleAdd}>新增知识</Button>
+                  </Col>
+                </Row>
+                {filteredItems.length > 0 ? renderKnowledgeList(filteredItems) : (
+                  <Empty description="未找到匹配的知识条目" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                )}
+              </div>
+            ),
+          },
+          {
+            key: 'regulations',
+            label: <span><BookOutlined /> 法规库</span>,
+            children: (
+              <div className="content-card">
+                <Space style={{ marginBottom: 16 }}>
+                  <Input.Search placeholder="搜索法规" allowClear style={{ width: 250 }} />
+                  <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增法规</Button>
+                </Space>
+                <Table columns={[...baseColumns,
+                  { title: '文件类型', dataIndex: 'fileType', width: 80, render: (v: string) => v ? <Tag>{v}</Tag> : null },
+                  { title: '操作', width: 180, render: (_, r) => (
+                    <Space size="small">
+                      <Button size="small" type="link" onClick={() => handleView(r)}><EyeOutlined /> 查看</Button>
+                      <Button size="small" type="link" onClick={() => handleEdit(r)}><EditOutlined /> 编辑</Button>
+                      <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
+                        <Button size="small" type="link" danger><DeleteOutlined /></Button>
+                      </Popconfirm>
+                    </Space>
+                  )},
+                ]} dataSource={regulations} rowKey="id" pagination={false} size="middle" />
+              </div>
+            ),
+          },
+          {
+            key: 'cases',
+            label: <span><FileTextOutlined /> 案例库</span>,
+            children: (
+              <div className="content-card">
+                <Space style={{ marginBottom: 16 }}>
+                  <Input.Search placeholder="搜索案例" allowClear style={{ width: 250 }} />
+                  <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增案例</Button>
+                  <Button icon={<SwapOutlined />}>从审计发现转化</Button>
+                </Space>
+                <Table columns={[...baseColumns,
+                  { title: '关联项目', dataIndex: 'relatedTo', width: 140, render: (v: string) => v ? <Tag color="blue">{v}</Tag> : '-' },
+                  { title: '操作', width: 180, render: (_, r) => (
+                    <Space size="small">
+                      <Button size="small" type="link" onClick={() => handleView(r)}><EyeOutlined /> 查看</Button>
+                      <Button size="small" type="link" onClick={() => handleEdit(r)}><EditOutlined /> 编辑</Button>
+                      <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
+                        <Button size="small" type="link" danger><DeleteOutlined /></Button>
+                      </Popconfirm>
+                    </Space>
+                  )},
+                ]} dataSource={cases} rowKey="id" pagination={false} size="middle" />
+              </div>
+            ),
+          },
+        ]} />
+
+        {/* 查看详情抽屉 */}
+        <Drawer title="知识详情" width={620} open={drawerVisible} onClose={() => setDrawerVisible(false)}>
+          {selectedItem && (
+            <div>
+              <Descriptions column={2} bordered size="small">
+                <Descriptions.Item label="编号">{selectedItem.id}</Descriptions.Item>
+                <Descriptions.Item label="类型"><Tag color={typeMap[selectedItem.type]?.color}>{typeMap[selectedItem.type]?.text}</Tag></Descriptions.Item>
+                <Descriptions.Item label="标题" span={2}>{selectedItem.title}</Descriptions.Item>
+                <Descriptions.Item label="分类">{selectedItem.category}</Descriptions.Item>
+                <Descriptions.Item label="状态"><Tag color={selectedItem.status === 'published' ? 'green' : 'orange'}>{selectedItem.status === 'published' ? '已发布' : '草稿'}</Tag></Descriptions.Item>
+                <Descriptions.Item label="作者">{selectedItem.author}</Descriptions.Item>
+                <Descriptions.Item label="更新">{selectedItem.updatedAt}</Descriptions.Item>
+                <Descriptions.Item label="评分" span={2}><Rate disabled value={selectedItem.rating} /></Descriptions.Item>
+                <Descriptions.Item label="浏览">{selectedItem.views}</Descriptions.Item>
+                <Descriptions.Item label="文件">{selectedItem.fileType || '无'}</Descriptions.Item>
+                <Descriptions.Item label="标签" span={2}>{selectedItem.tags.map(t => <Tag key={t}>{t}</Tag>)}</Descriptions.Item>
+                <Descriptions.Item label="内容" span={2}><div style={{ whiteSpace: 'pre-wrap' }}>{selectedItem.content}</div></Descriptions.Item>
+                {selectedItem.attachments && selectedItem.attachments.length > 0 && (
+                  <Descriptions.Item label="附件" span={2}>
+                    <List size="small" dataSource={selectedItem.attachments} renderItem={(f: UploadFile) => (
+                      <List.Item
+                        actions={f.url ? [<a key="dl" href={f.url} download={f.name} target="_blank" rel="noreferrer"><DownloadOutlined /></a>] : []}
+                      >
+                        <Space><Tag icon={<FileTextOutlined />} color="blue">{f.name}</Tag>
+                        {f.size && <Text type="secondary" style={{ fontSize: 12 }}>({(f.size / 1024).toFixed(1)} KB)</Text>}</Space>
+                      </List.Item>
+                    )} />
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+              {selectedItem.relatedTo && (
+                <Card size="small" title="关联审计项目" style={{ marginTop: 16 }}>
+                  <Text>来自审计发现 <Tag color="blue">{selectedItem.relatedTo}</Tag></Text>
+                </Card>
+              )}
+            </div>
+          )}
+        </Drawer>
+
+        {/* 新建/编辑弹窗 */}
+        <Modal title={editingItem ? '编辑知识条目' : '新增知识条目'} open={modalVisible}
+          onOk={handleModalOk} onCancel={() => setModalVisible(false)} width={600} destroyOnClose>
+          <Form form={form} layout="vertical" initialValues={{ type: 'regulation', status: 'published' }}>
+            <Form.Item name="title" label="标题" rules={[{ required: true }]}>
+              <Input placeholder="请输入标题" />
+            </Form.Item>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="type" label="类型" rules={[{ required: true }]}>
+                  <Select options={Object.entries(typeMap).map(([k, v]) => ({ value: k, label: v.text }))} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="category" label="分类" rules={[{ required: true }]}>
+                  <Select options={['内控规范', '国际标准', '采购审计', '资产管理', '底稿模板', '报告模板', '审计指南', 'IT审计'].map(c => ({ value: c, label: c }))} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="status" label="状态">
+                  <Select options={[{ value: 'published', label: '已发布' }, { value: 'draft', label: '草稿' }]} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="fileType" label="文件格式">
+                  <Input placeholder="如 PDF/DOC/XLSX" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="tags" label="标签">
+              <Select mode="tags" placeholder="输入标签后回车添加" />
+            </Form.Item>
+            <Form.Item label="附件上传">
+              <Upload.Dragger
+                fileList={fileList as any}
+                multiple
+                beforeUpload={(file) => {
+                  const reader = new FileReader();
+                  reader.readAsDataURL(file);
+                  reader.onload = () => {
+                    const newFile: UploadFile = {
+                      uid: `${Date.now()}-${Math.random()}`,
+                      name: file.name,
+                      status: 'done',
+                      size: file.size,
+                      type: file.type,
+                      url: reader.result as string,
+                    };
+                    setFileList(prev => [...prev, newFile]);
+                  };
+                  return false; // 阻止自动上传，手动管理
+                }}
+                onRemove={(file) => {
+                  setFileList(prev => prev.filter(f => f.uid !== file.uid));
+                }}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.zip,.rar"
+                showUploadList={{ showPreviewIcon: true, showRemoveIcon: true, showDownloadIcon: false }}
+              >
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined />
+                </p>
+                <p className="ant-upload-text">点击或拖拽文件至此区域上传</p>
+                <p className="ant-upload-hint">支持 PDF / Word / Excel / PPT / 图片 / 压缩包</p>
+              </Upload.Dragger>
+            </Form.Item>
+            <Form.Item name="content" label="内容" rules={[{ required: true }]}>
+              <TextArea rows={6} placeholder="请输入知识内容..." />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Content>
+    </Layout>
+  );
+};
+
+export default KnowledgePage;

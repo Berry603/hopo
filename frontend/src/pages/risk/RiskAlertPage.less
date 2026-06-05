@@ -1,0 +1,81 @@
+.risk-alert-page {
+  .page-header {
+    margin-bottom: 16px;
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 4px;
+
+      .anticon {
+        color: #E34D59;
+        margin-right: 8px;
+      }
+    }
+
+    .page-subtitle {
+      color: #666;
+      margin: 0;
+    }
+  }
+
+  .page-content {
+    .content-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+  }
+
+  // Tab styles
+  .ant-tabs {
+    .ant-tabs-nav {
+      margin-bottom: 16px;
+
+      .ant-tabs-tab {
+        font-size: 14px;
+        padding: 8px 16px;
+
+        .ant-badge {
+          margin-left: 4px;
+        }
+      }
+
+      .ant-tabs-tab-active {
+        font-weight: 500;
+      }
+    }
+  }
+
+  // Card hover effect
+  .ant-card {
+    border-radius: 8px;
+    transition: box-shadow 0.3s;
+
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+  }
+
+  // Table styles
+  .ant-table {
+    .ant-table-thead > tr > th {
+      background: #fafafa;
+      font-weight: 600;
+    }
+  }
+
+  // Button primary override
+  .ant-btn-primary {
+    &:not(:disabled) {
+      background: #E34D59;
+      border-color: #E34D59;
+
+      &:hover {
+        background: #c73d49;
+        border-color: #c73d49;
+      }
+    }
+  }
+}

@@ -1,0 +1,173 @@
+/* HOPO ICMS - Global Styles */
+
+@import './variables.less';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: @font-family;
+  font-size: @font-size-base;
+  background-color: @bg-color;
+  color: @text-color-primary;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 通用样式 */
+.full-height {
+  height: 100%;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+/* 页面标题 */
+.page-header {
+  padding: 16px 24px;
+  background: #fff;
+  border-bottom: 1px solid @border-color;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: @text-color-primary;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: @text-color-secondary;
+  margin-top: 4px;
+}
+
+/* 页面内容 */
+.page-content {
+  padding: 24px;
+  min-height: calc(100vh - 64px - 48px);
+}
+
+/* 通用页面容器 */
+.page-container {
+  padding: 24px;
+}
+
+/* 内容卡片 */
+.content-card {
+  background: #fff;
+  border-radius: @border-radius-base;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+/* 状态标签 */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-tag-high {
+  background: #fff1f0;
+  color: #f5222d;
+  border: 1px solid #ffa39e;
+}
+
+.status-tag-medium {
+  background: #fff7e6;
+  color: #fa8c16;
+  border: 1px solid #ffd591;
+}
+
+.status-tag-low {
+  background: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
+}
+
+/* 加载动画 */
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: @text-color-secondary;
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #d9d9d9;
+}
+
+.empty-state-text {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.empty-state-subtext {
+  font-size: 14px;
+  color: #bfbfbf;
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  .page-content {
+    padding: 16px;
+  }
+  
+  .content-card {
+    padding: 16px;
+  }
+}
