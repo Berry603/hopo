@@ -3,7 +3,7 @@ import {
   Layout, Tabs, Button, Table, Tag, Space, Modal, Form, Input, Select,
   DatePicker, message, Card, Statistic, Row, Col, Badge, Progress,
   Popconfirm, Drawer, Timeline, Upload, Divider, Steps, Tooltip,
-  Radio, Empty, Switch, InputNumber,
+  Radio, Empty, Switch, InputNumber, List, Descriptions,
 } from 'antd';
 import {
   AuditOutlined, FormOutlined, BarChartOutlined, FileTextOutlined,
@@ -108,6 +108,29 @@ const mockReports: Report[] = [
   { id: 'RPT-002', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', template: '年度审计报告', status: 'published', version: 'v1.0', createdAt: '2026-01-15', updatedAt: '2026-01-31' },
 ];
 
+const worksheetData: Record<string, { name: string; preparedBy: string; lastModified: string; pages: number; memo: string }[]> = {
+  'PRJ-2026-001': [
+    { name: '销售费用凭证抽查表.xlsx', preparedBy: 'Berry', lastModified: '2026-06-01', pages: 12, memo: '抽查50笔' },
+    { name: '差旅费明细分析.docx', preparedBy: '李雷', lastModified: '2026-05-28', pages: 8, memo: '含异常标记' },
+    { name: '合同台账核对表.xlsx', preparedBy: '韩梅梅', lastModified: '2026-05-25', pages: 20, memo: '全部供应商' },
+    { name: '银行流水比对.doc', preparedBy: 'Berry', lastModified: '2026-05-22', pages: 15, memo: '已对账' },
+  ],
+  'PRJ-2026-002': [
+    { name: '采购订单抽查表.xlsx', preparedBy: '王芳', lastModified: '2026-05-30', pages: 18, memo: '随机抽样100笔' },
+    { name: '供应商资质审查表.docx', preparedBy: '赵明', lastModified: '2026-05-28', pages: 6, memo: '全部供应商' },
+    { name: '比价单汇总分析.xlsx', preparedBy: '孙丽', lastModified: '2026-05-26', pages: 10, memo: '含异常标注' },
+    { name: '采购合同台账.doc', preparedBy: '王芳', lastModified: '2026-05-20', pages: 22, memo: '近三年' },
+    { name: '入库单核对表.xlsx', preparedBy: '赵明', lastModified: '2026-05-18', pages: 14, memo: '与ERP比对' },
+    { name: '付款审批跟踪表.doc', preparedBy: '孙丽', lastModified: '2026-05-15', pages: 8, memo: '已审批完毕' },
+  ],
+  'PRJ-2025-012': [
+    { name: '年度审计底稿-总账.xlsx', preparedBy: 'Berry', lastModified: '2026-01-30', pages: 45, memo: '科目余额表' },
+    { name: '关联交易核对表.docx', preparedBy: '李雷', lastModified: '2026-01-28', pages: 12, memo: '已核实' },
+    { name: '固定资产盘点表.xlsx', preparedBy: '韩梅梅', lastModified: '2026-01-25', pages: 30, memo: '全盘点' },
+    { name: '应收应付账龄分析.doc', preparedBy: 'Berry', lastModified: '2026-01-20', pages: 18, memo: '账龄分析' },
+  ],
+};
+
 const phaseMap: Record<string, { label: string; color: string; step: number }> = {
   planning: { label: '计划阶段', color: 'blue', step: 0 },
   execution: { label: '执行阶段', color: 'processing', step: 1 },
@@ -152,6 +175,9 @@ const AuditProjectPage: React.FC = () => {
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [findingModalVisible, setFindingModalVisible] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [worksheetModalVisible, setWorksheetModalVisible] = useState(false);
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewWorksheet, setPreviewWorksheet] = useState<{ name: string; preparedBy: string; lastModified: string; pages: number; memo: string } | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
 
   const [projectForm] = Form.useForm();
@@ -311,6 +337,19 @@ const AuditProjectPage: React.FC = () => {
 
   const handleDownloadReport = (report: Report) => {
     message.success(`报告 ${report.id} 已加入下载队列`);
+  };
+
+  // ==================== Worksheet 操作 ====================
+
+  type WorksheetItem = { name: string; preparedBy: string; lastModified: string; pages: number; memo: string };
+
+  const handlePreviewWorksheet = (item: WorksheetItem) => {
+    setPreviewWorksheet(item);
+    setPreviewModalVisible(true);
+  };
+
+  const handleDownloadWorksheet = (item: WorksheetItem) => {
+    message.success(`底稿「${item.name}」已加入下载队列`);
   };
 
   // ==================== Columns ====================
@@ -678,6 +717,79 @@ const AuditProjectPage: React.FC = () => {
         </Form>
       </Modal>
 
+      {/* Worksheet Modal */}
+      <Modal
+        title={`工作底稿 - ${selectedProject?.name || ''}`}
+        open={worksheetModalVisible}
+        onCancel={() => setWorksheetModalVisible(false)}
+        footer={null}
+        width={700}
+      >
+        {selectedProject && (
+          <List
+            dataSource={worksheetData[selectedProject.id] || []}
+            renderItem={(item) => (
+              <List.Item actions={[
+                <Button size="small" type="link" icon={<EyeOutlined />} onClick={() => handlePreviewWorksheet(item)}>预览</Button>,
+                <Button size="small" type="link" icon={<DownloadOutlined />} onClick={() => handleDownloadWorksheet(item)}>下载</Button>,
+              ]}>
+                <List.Item.Meta
+                  avatar={<FileWordOutlined style={{ fontSize: 24, color: '#2b579a' }} />}
+                  title={item.name}
+                  description={`${item.preparedBy} · ${item.lastModified} · ${item.pages}页 · ${item.memo}`}
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Modal>
+
+      {/* Worksheet Preview Modal */}
+      <Modal
+        title={`底稿预览: ${previewWorksheet?.name || ''}`}
+        open={previewModalVisible}
+        onCancel={() => setPreviewModalVisible(false)}
+        footer={<Button onClick={() => setPreviewModalVisible(false)}>关闭</Button>}
+        width={800}
+      >
+        {previewWorksheet && (
+          <div>
+            <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="文件名称">{previewWorksheet.name}</Descriptions.Item>
+              <Descriptions.Item label="制单人">{previewWorksheet.preparedBy}</Descriptions.Item>
+              <Descriptions.Item label="最后修改">{previewWorksheet.lastModified}</Descriptions.Item>
+              <Descriptions.Item label="页数">{previewWorksheet.pages} 页</Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>{previewWorksheet.memo}</Descriptions.Item>
+            </Descriptions>
+            <Divider orientation="left" plain>文件内容预览</Divider>
+            <div style={{
+              background: '#fafafa', border: '1px solid #d9d9d9', borderRadius: 6,
+              padding: 16, minHeight: 240, maxHeight: 420, overflow: 'auto',
+              fontFamily: 'Consolas, Monaco, monospace', fontSize: 13, lineHeight: 1.7,
+              whiteSpace: 'pre-wrap', color: '#333',
+            }}>
+              <div style={{ color: '#999', marginBottom: 8 }}>══════════ {previewWorksheet.name} ══════════</div>
+              <div style={{ color: '#666', marginBottom: 12 }}>制单人: {previewWorksheet.preparedBy}　|　日期: {previewWorksheet.lastModified}　|　{previewWorksheet.pages}页</div>
+              <div style={{ marginBottom: 12 }}>摘要: {previewWorksheet.memo}</div>
+              <div style={{ borderTop: '1px dashed #d9d9d9', margin: '8px 0' }} />
+              <div>一、审计目的</div>
+              <div style={{ marginLeft: 16, color: '#555' }}>根据年度审计计划，对相关业务事项进行合规性与合理性审查。</div>
+              <div style={{ marginTop: 12 }}>二、审计范围</div>
+              <div style={{ marginLeft: 16, color: '#555' }}>抽查期间内的相关凭证、合同、台账等业务资料。</div>
+              <div style={{ marginLeft: 16, color: '#555' }}>涉及部门: 采购部、财务部、行政部、销售部</div>
+              <div style={{ marginTop: 12 }}>三、审计发现</div>
+              <div style={{ marginLeft: 16, color: '#555' }}>1. 部分凭证缺少必要的审批签字，涉及金额 ¥12,500</div>
+              <div style={{ marginLeft: 16, color: '#555' }}>2. 差旅费报销存在超标现象，超标准金额合计 ¥3,200</div>
+              <div style={{ marginLeft: 16, color: '#555' }}>3. 合同条款与公司标准模板不一致，建议修订</div>
+              <div style={{ marginTop: 12 }}>四、审计结论</div>
+              <div style={{ marginLeft: 16, color: '#555' }}>总体合规，存在个别流程瑕疵，建议限期整改。</div>
+              <div style={{ borderTop: '1px dashed #d9d9d9', margin: '8px 0' }} />
+              <div style={{ color: '#999', fontSize: 11 }}>— 此为预览视图，完整文件请点击「下载」获取 —</div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Project Detail Drawer */}
       <Drawer title={`项目详情: ${selectedProject?.id}`} width={600} onClose={() => setDetailDrawerVisible(false)} open={detailDrawerVisible}>
         {selectedProject && (
@@ -696,8 +808,28 @@ const AuditProjectPage: React.FC = () => {
             </Steps>
 
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-              <Col span={12}><Card size="small"><Statistic title="审计发现" value={selectedProject.findings} /></Card></Col>
-              <Col span={12}><Card size="small"><Statistic title="工作底稿" value={selectedProject.worksheets} /></Card></Col>
+              <Col span={12}>
+                <Card
+                  size="small"
+                  hoverable
+                  onClick={() => { setDetailDrawerVisible(false); setActiveTab('findings'); }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Statistic title="审计发现" value={selectedProject.findings} />
+                  <div style={{ textAlign: 'right', fontSize: 11, color: '#999' }}>点击查看 →</div>
+                </Card>
+              </Col>
+              <Col span={12}>
+                <Card
+                  size="small"
+                  hoverable
+                  onClick={() => setWorksheetModalVisible(true)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Statistic title="工作底稿" value={selectedProject.worksheets} />
+                  <div style={{ textAlign: 'right', fontSize: 11, color: '#999' }}>点击查看 →</div>
+                </Card>
+              </Col>
             </Row>
 
             <Divider orientation="left">项目信息</Divider>
