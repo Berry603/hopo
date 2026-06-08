@@ -381,7 +381,17 @@ const AuditProjectPage: React.FC = () => {
   };
 
   const handleDownloadReport = (report: Report) => {
-    message.success(`报告 ${report.id} 已加入下载队列`);
+    const content = `审计报告\n报告编号：${report.id}\n所属项目：${report.projectName}\n模板：${report.template}\n版本：${report.version}\n状态：${report.status}\n创建时间：${report.createdAt}\n更新时间：${report.updatedAt}\n\n一、审计概况\n本报告依据审计计划，对${report.projectName}进行了全面审查。\n\n二、主要发现\n详见附件。\n\n三、审计结论\n经审计，被审计单位内部控制基本健全，存在若干改进空间，建议按整改意见执行。`;
+    const blob = new Blob(['\uFEFF' + content], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${report.id}_${report.projectName}_审计报告_${report.version}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    message.success(`报告 ${report.id} 下载已开始`);
   };
 
   // ==================== Worksheet 操作 ====================
@@ -394,7 +404,32 @@ const AuditProjectPage: React.FC = () => {
   };
 
   const handleDownloadWorksheet = (item: WorksheetItem) => {
-    message.success(`底稿「${item.name}」已加入下载队列`);
+    // 根据文件扩展名生成对应的模拟内容并触发浏览器下载
+    const ext = item.name.split('.').pop()?.toLowerCase() || 'txt';
+    let content = '';
+    let mimeType = 'text/plain';
+
+    if (ext === 'xlsx' || ext === 'xls') {
+      // 生成简单 CSV 内容（用 .xlsx 名称但实际为 csv，演示用）
+      content = `审计底稿 - ${item.name}\n制单人,${item.preparedBy}\n日期,${item.lastModified}\n页数,${item.pages}\n备注,${item.memo}\n\n序号,项目,金额(元),备注\n1,样本1,10000,正常\n2,样本2,25000,需关注\n3,样本3,8500,正常`;
+      mimeType = 'text/csv;charset=utf-8;';
+    } else if (ext === 'docx' || ext === 'doc') {
+      content = `审计底稿：${item.name}\n制单人：${item.preparedBy}\n日期：${item.lastModified}\n页数：${item.pages} 页\n备注：${item.memo}\n\n一、审计目的\n对相关业务事项进行合规性审查，评估内部控制有效性。\n\n二、审计范围\n覆盖审计期间内全部相关业务凭证及台账记录。\n\n三、审计发现\n详见正文。\n\n四、审计结论\n经审计，相关内容基本符合规定，具体发现事项见审计报告。`;
+      mimeType = 'text/plain;charset=utf-8;';
+    } else {
+      content = `${item.name}\n制单人：${item.preparedBy}\n日期：${item.lastModified}`;
+    }
+
+    const blob = new Blob(['\uFEFF' + content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = item.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    message.success(`底稿「${item.name}」下载已开始`);
   };
 
   // ==================== Columns ====================
