@@ -1,19 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Layout, Tabs, Table, Button, Space, Tag, Input, Select, Card,
   Modal, Form, Drawer, Descriptions, Rate, Popconfirm, message,
   Row, Col, List, Typography, Empty, Divider, Tooltip, DatePicker,
-  Upload,
+  Upload, Statistic, Dropdown,
 } from 'antd';
 import type { UploadProps } from 'antd';
+import type { RcFile, UploadFile } from 'antd/es/upload';
 import {
   BookOutlined, SearchOutlined, FileTextOutlined, PlusOutlined,
   EyeOutlined, EditOutlined, DeleteOutlined, StarOutlined,
   CloudUploadOutlined, TagsOutlined, FilePdfOutlined,
   TeamOutlined, BulbOutlined, ReloadOutlined, DownloadOutlined,
   SwapOutlined, UploadOutlined, InboxOutlined,
+  FileWordOutlined, FileExcelOutlined, FileImageOutlined,
+  FileUnknownOutlined, ClockCircleOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { useSearchParams } from 'react-router-dom';
 import './KnowledgePage.less';
 
 const { Content } = Layout;
@@ -63,9 +68,40 @@ const typeMap: Record<string, { color: string; text: string; icon: React.ReactNo
   article: { color: 'purple', text: '文章', icon: <StarOutlined /> },
 };
 
+// ---- 模板库类型与辅助函数 ----
+interface TemplateItem {
+  id: string; name: string; category: string; category_label: string;
+  description: string | null; file_name: string; file_path: string;
+  file_size: number; file_type: string; is_preset: boolean;
+  download_count: number; created_at: string; updated_at: string; created_by: string;
+}
+interface CategoryItem { value: string; label: string; }
+interface TemplateListResponse { total: number; items: TemplateItem[]; }
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function getFileIcon(fileType: string): React.ReactNode {
+  const t = fileType.toLowerCase();
+  if (['doc', 'docx'].includes(t)) return <FileWordOutlined style={{ color: '#2b579a', fontSize: 24 }} />;
+  if (['xls', 'xlsx'].includes(t)) return <FileExcelOutlined style={{ color: '#217346', fontSize: 24 }} />;
+  if (t === 'csv') return <FileExcelOutlined style={{ color: '#217346', fontSize: 24 }} />;
+  if (t === 'pdf') return <FilePdfOutlined style={{ color: '#f5222d', fontSize: 24 }} />;
+  if (t === 'txt') return <FileTextOutlined style={{ color: '#595959', fontSize: 24 }} />;
+  if (['png', 'jpg', 'jpeg'].includes(t)) return <FileImageOutlined style={{ color: '#52c41a', fontSize: 24 }} />;
+  return <FileUnknownOutlined style={{ color: '#999', fontSize: 24 }} />;
+}
+const categoryColorMap: Record<string, string> = {
+  financial: '#1890ff', operational: '#52c41a', compliance: '#faad14',
+  purchase: '#722ed1', sales: '#eb2f96', asset: '#13c2c2', fund: '#fa8c16', other: '#8c8c8c',
+};
+
 const KnowledgePage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<KnowledgeItem[]>(mockKnowledge);
-  const [activeTab, setActiveTab] = useState('search');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'search');
   const [searchText, setSearchText] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
@@ -75,6 +111,25 @@ const KnowledgePage: React.FC = () => {
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
+
+  // ---- 模板库状态 ----
+  const [templates, setTemplates] = useState<TemplateItem[]>([]);
+  const [templateCategories, setTemplateCategories] = useState<CategoryItem[]>([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateUploading, setTemplateUploading] = useState(false);
+  const [templateSearchKeyword, setTemplateSearchKeyword] = useState('');
+  const [templateFilterCategory, setTemplateFilterCategory] = useState<string | null>(null);
+  const [templateUploadModalVisible, setTemplateUploadModalVisible] = useState(false);
+  const [templateDetailModalVisible, setTemplateDetailModalVisible] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
+  const [templateFileList, setTemplateFileList] = useState<UploadFile[]>([]);
+  const [templateUploadForm] = Form.useForm();
+
+  // 同步 tab 到 URL
+  const handleTabChange = useCallback((key: string) => {
+    setActiveTab(key);
+    setSearchParams(key === 'search' ? {} : { tab: key }, { replace: true });
+  }, [setSearchParams]);
 
   const filteredItems = useMemo(() => {
     return items.filter(i => {
@@ -135,6 +190,136 @@ const KnowledgePage: React.FC = () => {
     } catch {}
   };
 
+  // ---- 模板库 API ----
+  const fetchTemplates = useCallback(async () => {
+    setTemplateLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (templateFilterCategory) params.append('category', templateFilterCategory);
+      if (templateSearchKeyword) params.append('keyword', templateSearchKeyword);
+      const res = await fetch(`/api/v1/templates?${params.toString()}`);
+      const data: TemplateListResponse = await res.json();
+      setTemplates(data.items || []);
+    } catch { messageApi.error('获取模板列表失败'); }
+    finally { setTemplateLoading(false); }
+  }, [templateFilterCategory, templateSearchKeyword, messageApi]);
+
+  const fetchTemplateCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/templates/categories');
+      const data = await res.json();
+      setTemplateCategories(data.items || []);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchTemplateCategories(); fetchTemplates(); }, [fetchTemplateCategories, fetchTemplates]);
+
+  const handleTemplateUpload = () => {
+    templateUploadForm.resetFields();
+    setTemplateFileList([]);
+    setTemplateUploadModalVisible(true);
+  };
+
+  const handleTemplateUploadSubmit = async () => {
+    try {
+      const values = await templateUploadForm.validateFields();
+      if (templateFileList.length === 0) { messageApi.warning('请选择要上传的文件'); return; }
+      setTemplateUploading(true);
+      const formData = new FormData();
+      formData.append('name', values.name);
+      formData.append('category', values.category || 'other');
+      if (values.description) formData.append('description', values.description);
+      const file = templateFileList[0].originFileObj as RcFile;
+      formData.append('file', file);
+      const res = await fetch('/api/v1/templates/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) { messageApi.success(data.message || '模板上传成功'); setTemplateUploadModalVisible(false); fetchTemplates(); }
+      else { messageApi.error(data.detail || '上传失败'); }
+    } catch (err: any) {
+      if (err.errorFields) return;
+      messageApi.error('上传失败');
+    } finally { setTemplateUploading(false); }
+  };
+
+  const handleTemplateDownload = (tmpl: TemplateItem, format?: string) => {
+    const fmt = format || tmpl.file_type;
+    const url = `/api/v1/templates/${tmpl.id}/download${fmt !== tmpl.file_type ? `?format=${fmt}` : ''}`;
+    const ext = fmt === 'csv' ? '.csv' : `.${tmpl.file_type}`;
+    const downloadName = tmpl.file_name.replace(/\.[^.]+$/, ext);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = downloadName;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    messageApi.success(`模板「${tmpl.name}」下载已开始（.${fmt}）`);
+    setTimeout(() => fetchTemplates(), 500);
+  };
+
+  const handleTemplateDelete = async (tmpl: TemplateItem) => {
+    if (tmpl.is_preset) { messageApi.warning('系统预设模板不可删除'); return; }
+    try {
+      const res = await fetch(`/api/v1/templates/${tmpl.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) { messageApi.success(data.message || '删除成功'); fetchTemplates(); }
+      else { messageApi.error(data.detail || '删除失败'); }
+    } catch { messageApi.error('删除失败'); }
+  };
+
+  const handleTemplateViewDetail = (tmpl: TemplateItem) => {
+    setSelectedTemplate(tmpl);
+    setTemplateDetailModalVisible(true);
+  };
+
+  // 模板上传配置
+  const templateUploadProps = {
+    fileList: templateFileList,
+    beforeUpload: (file: RcFile) => {
+      const allowed = ['doc', 'docx', 'xls', 'xlsx', 'csv', 'pdf', 'txt', 'png', 'jpg', 'jpeg'];
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      if (!allowed.includes(ext)) { messageApi.error(`不支持的文件格式: .${ext}`); return Upload.LIST_IGNORE; }
+      if (file.size > 50 * 1024 * 1024) { messageApi.error('文件大小不能超过 50MB'); return Upload.LIST_IGNORE; }
+      setTemplateFileList([{ uid: '-1', name: file.name, status: 'done', originFileObj: file }]);
+      return false;
+    },
+    onRemove: () => setTemplateFileList([]),
+    maxCount: 1,
+  };
+
+  // 模板统计
+  const templateStats = {
+    total: templates.length,
+    presets: templates.filter(t => t.is_preset).length,
+    custom: templates.filter(t => !t.is_preset).length,
+    totalDownloads: templates.reduce((sum, t) => sum + t.download_count, 0),
+  };
+
+  // 模板表格列
+  const templateColumns: ColumnsType<TemplateItem> = [
+    { title: '模板编号', dataIndex: 'id', width: 110, render: (t: string) => <code style={{ fontSize: 12 }}>{t}</code> },
+    { title: '模板名称', dataIndex: 'name', render: (text: string, record) => (
+        <div><div style={{ fontWeight: 500 }}>{text}</div><div style={{ fontSize: 12, color: '#999' }}>{record.description || '-'}</div></div>) },
+    { title: '分类', dataIndex: 'category', width: 110, render: (c: string, record) => <Tag color={categoryColorMap[c] || '#8c8c8c'}>{record.category_label}</Tag> },
+
+    { title: '下载次数', dataIndex: 'download_count', width: 100, align: 'right' as const, render: (n: number) => <Text>{n}</Text> },
+    { title: '类型', dataIndex: 'is_preset', width: 90, render: (v: boolean) => v ? <Tag color="gold">系统预设</Tag> : <Tag color="blue">自建</Tag> },
+    { title: '创建时间', dataIndex: 'created_at', width: 170, render: (t: string) => <span style={{ fontSize: 12 }}><ClockCircleOutlined style={{ marginRight: 4 }} />{t ? new Date(t).toLocaleString('zh-CN') : '-'}</span> },
+    { title: '操作', key: 'action', width: 240, fixed: 'right' as const, render: (_, record) => (
+        <Space size="small">
+          <Button size="small" icon={<EyeOutlined />} onClick={() => handleTemplateViewDetail(record)}>查看</Button>
+          <Dropdown menu={{ items: [
+            { key: 'xlsx', label: '下载 .xlsx', icon: <FileExcelOutlined /> },
+            { key: 'csv', label: '下载 .csv', icon: <FileExcelOutlined /> },
+          ], onClick: ({ key }) => handleTemplateDownload(record, key) }}>
+            <Button size="small" icon={<DownloadOutlined />}>下载</Button>
+          </Dropdown>
+          {!record.is_preset && (
+            <Button size="small" danger icon={<DeleteOutlined />}
+              onClick={() => Modal.confirm({ title: '确认删除', icon: <ExclamationCircleOutlined />,
+                content: `确定要删除模板「${record.name}」吗？此操作不可恢复。`, okText: '确认删除', okType: 'danger', cancelText: '取消',
+                onOk: () => handleTemplateDelete(record) })}>删除</Button>)}
+        </Space>) },
+  ];
+
   // 通用列表渲染
   const renderKnowledgeList = (list: KnowledgeItem[]) => (
     <List grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 3, xl: 4 }}
@@ -188,7 +373,7 @@ const KnowledgePage: React.FC = () => {
         <p className="page-subtitle">审计知识沉淀、检索和复用</p>
       </div>
       <Content className="page-content">
-        <Tabs defaultActiveKey="search" activeKey={activeTab} onChange={setActiveTab} items={[
+        <Tabs activeKey={activeTab} onChange={handleTabChange} items={[
           {
             key: 'search',
             label: <span><SearchOutlined /> 知识检索</span>,
@@ -263,6 +448,56 @@ const KnowledgePage: React.FC = () => {
                     </Space>
                   )},
                 ]} dataSource={cases} rowKey="id" pagination={false} size="middle" />
+              </div>
+            ),
+          },
+          {
+            key: 'templates',
+            label: <span><FileTextOutlined /> 模板库</span>,
+            children: (
+              <div className="content-card">
+                {/* 统计卡片 */}
+                <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                  <Col xs={12} sm={6}>
+                    <Card><Statistic title="模板总数" value={templateStats.total} prefix={<FileTextOutlined />} valueStyle={{ color: '#E34D59' }} /></Card>
+                  </Col>
+                  <Col xs={12} sm={6}>
+                    <Card><Statistic title="系统预设" value={templateStats.presets} prefix={<FileWordOutlined />} valueStyle={{ color: '#faad14' }} /></Card>
+                  </Col>
+                  <Col xs={12} sm={6}>
+                    <Card><Statistic title="自建模板" value={templateStats.custom} prefix={<FileExcelOutlined />} valueStyle={{ color: '#1890ff' }} /></Card>
+                  </Col>
+                  <Col xs={12} sm={6}>
+                    <Card><Statistic title="累计下载" value={templateStats.totalDownloads} prefix={<DownloadOutlined />} valueStyle={{ color: '#52c41a' }} /></Card>
+                  </Col>
+                </Row>
+
+                {/* 工具栏 */}
+                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <Space>
+                    <Input.Search placeholder="搜索模板名称..." allowClear style={{ width: 280 }}
+                      prefix={<SearchOutlined />}
+                      onSearch={(val) => setTemplateSearchKeyword(val)}
+                      onPressEnter={(e) => setTemplateSearchKeyword((e.target as HTMLInputElement).value)}
+                      onChange={(e) => { if (!e.target.value) setTemplateSearchKeyword(''); }} />
+                    <Select placeholder="选择分类" allowClear style={{ width: 140 }}
+                      value={templateFilterCategory}
+                      onChange={(val) => setTemplateFilterCategory(val || null)}>
+                      {templateCategories.map((c) => <Select.Option key={c.value} value={c.value}>{c.label}</Select.Option>)}
+                    </Select>
+                  </Space>
+                  <Space>
+                    <Button icon={<ReloadOutlined />} onClick={fetchTemplates}>刷新</Button>
+                    <Button type="primary" icon={<UploadOutlined />} onClick={handleTemplateUpload}
+                      style={{ background: '#E34D59', borderColor: '#E34D59' }}>上传模板</Button>
+                  </Space>
+                </div>
+
+                {/* 表格 */}
+                <Table columns={templateColumns} dataSource={templates} rowKey="id"
+                  loading={templateLoading}
+                  pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 个模板` }}
+                  scroll={{ x: 1300 }} />
               </div>
             ),
           },
@@ -364,7 +599,7 @@ const KnowledgePage: React.FC = () => {
                 onRemove={(file) => {
                   setFileList(prev => prev.filter(f => f.uid !== file.uid));
                 }}
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.zip,.rar"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.zip,.rar"
                 showUploadList={{ showPreviewIcon: true, showRemoveIcon: true, showDownloadIcon: false }}
               >
                 <p className="ant-upload-drag-icon">
@@ -378,6 +613,72 @@ const KnowledgePage: React.FC = () => {
               <TextArea rows={6} placeholder="请输入知识内容..." />
             </Form.Item>
           </Form>
+        </Modal>
+
+        {/* ---- 模板上传弹窗 ---- */}
+        <Modal title="上传底稿模板" open={templateUploadModalVisible}
+          onOk={handleTemplateUploadSubmit} onCancel={() => setTemplateUploadModalVisible(false)}
+          confirmLoading={templateUploading} okText="确认上传" cancelText="取消" width={560}>
+          <Form form={templateUploadForm} layout="vertical" style={{ marginTop: 12 }}>
+            <Form.Item name="name" label="模板名称" rules={[{ required: true, message: '请输入模板名称' }]}>
+              <Input placeholder="如: 审计底稿-费用分析表" />
+            </Form.Item>
+            <Form.Item name="category" label="模板分类" initialValue="other" rules={[{ required: true, message: '请选择分类' }]}>
+              <Select placeholder="选择分类">
+                {templateCategories.map((c) => <Select.Option key={c.value} value={c.value}>{c.label}</Select.Option>)}
+              </Select>
+            </Form.Item>
+            <Form.Item name="description" label="模板描述">
+              <Input.TextArea rows={3} placeholder="简要描述模板用途..." />
+            </Form.Item>
+            <Form.Item label="选择文件" required>
+              <Upload.Dragger {...templateUploadProps} accept=".doc,.docx,.xls,.xlsx,.csv,.pdf,.txt,.png,.jpg,.jpeg">
+                <p className="ant-upload-drag-icon"><UploadOutlined style={{ fontSize: 36, color: '#E34D59' }} /></p>
+                <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+                <p className="ant-upload-hint">支持 Word、Excel、CSV、PDF、TXT、图片格式，单个文件不超过 50MB</p>
+              </Upload.Dragger>
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        {/* ---- 模板详情弹窗 ---- */}
+        <Modal title={`模板详情: ${selectedTemplate?.name || ''}`} open={templateDetailModalVisible}
+          onCancel={() => setTemplateDetailModalVisible(false)}
+          footer={<Space>
+            {selectedTemplate && (
+              <Dropdown menu={{ items: [
+                { key: 'xlsx', label: '下载 .xlsx', icon: <FileExcelOutlined /> },
+                { key: 'csv', label: '下载 .csv', icon: <FileExcelOutlined /> },
+              ], onClick: ({ key }) => handleTemplateDownload(selectedTemplate, key) }}>
+                <Button icon={<DownloadOutlined />}>下载文件</Button>
+              </Dropdown>
+            )}
+            <Button onClick={() => setTemplateDetailModalVisible(false)}>关闭</Button>
+          </Space>} width={640}>
+          {selectedTemplate && (
+            <div>
+              <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>
+                <Descriptions.Item label="模板编号" span={2}><code>{selectedTemplate.id}</code></Descriptions.Item>
+                <Descriptions.Item label="模板名称">{selectedTemplate.name}</Descriptions.Item>
+                <Descriptions.Item label="分类"><Tag color={categoryColorMap[selectedTemplate.category] || '#8c8c8c'}>{selectedTemplate.category_label}</Tag></Descriptions.Item>
+                <Descriptions.Item label="原始文件名" span={2}>{selectedTemplate.file_name}</Descriptions.Item>
+                <Descriptions.Item label="文件类型">.{selectedTemplate.file_type}</Descriptions.Item>
+                <Descriptions.Item label="文件大小">{formatFileSize(selectedTemplate.file_size)}</Descriptions.Item>
+                <Descriptions.Item label="模板类型">{selectedTemplate.is_preset ? <Tag color="gold">系统预设</Tag> : <Tag color="blue">自建</Tag>}</Descriptions.Item>
+                <Descriptions.Item label="下载次数">{selectedTemplate.download_count}</Descriptions.Item>
+                <Descriptions.Item label="创建人">{selectedTemplate.created_by || '-'}</Descriptions.Item>
+                <Descriptions.Item label="创建时间">{selectedTemplate.created_at ? new Date(selectedTemplate.created_at).toLocaleString('zh-CN') : '-'}</Descriptions.Item>
+                <Descriptions.Item label="描述" span={2}><Text>{selectedTemplate.description || '暂无描述'}</Text></Descriptions.Item>
+              </Descriptions>
+              <Card size="small" title="文件预览" style={{ marginTop: 16 }}>
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  {getFileIcon(selectedTemplate.file_type)}
+                  <div style={{ marginTop: 12, fontWeight: 500 }}>{selectedTemplate.file_name}</div>
+                  <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>.{selectedTemplate.file_type} · {formatFileSize(selectedTemplate.file_size)} · 下载 {selectedTemplate.download_count} 次</div>
+                </div>
+              </Card>
+            </div>
+          )}
         </Modal>
       </Content>
     </Layout>

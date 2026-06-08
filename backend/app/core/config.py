@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
     UPLOAD_DIR: str = str(BASE_DIR / "uploads")
-    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg"]
+    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".png", ".jpg", ".jpeg"]
     
     # AI配置
     OPENAI_API_KEY: Optional[str] = None
@@ -92,7 +92,7 @@ class Settings(BaseSettings):
             return self.SQLALCHEMY_DATABASE_URI
         
         if self.USE_SQLITE:
-            return f"sqlite+aiosqlite:///{self.SQLITE_DB_PATH}"
+            return f"sqlite:///{self.SQLITE_DB_PATH}"
         else:
             return (
                 f"postgresql+psycopg2://"

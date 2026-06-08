@@ -54,7 +54,7 @@ def init_db():
     初始化数据库
     创建所有表
     """
-    from app.models import user, audit_project, risk, rectification, knowledge, etl, rbac, sso, audit_log
+    from app.models import user, audit_project, risk, rectification, knowledge, etl, rbac, sso, audit_log, template
     
     logger.info("开始创建数据库表...")
     Base.metadata.create_all(bind=engine)

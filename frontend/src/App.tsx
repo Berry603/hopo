@@ -30,6 +30,7 @@ function App() {
           <Route path="knowledge" element={<KnowledgePage />} />
           <Route path="data-quality" element={<DataQualityPage />} />
           <Route path="query" element={<QueryPage />} />
+          <Route path="templates" element={<Navigate to="/knowledge?tab=templates" replace />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

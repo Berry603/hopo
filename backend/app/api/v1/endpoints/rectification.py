@@ -13,7 +13,7 @@ import json
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.middleware.auth import AuthMiddleware
+from app.core.auth_utils import decode_token
 from app.models.rectification import (
     RectificationOrder,
     RectificationEvidence,
@@ -27,7 +27,6 @@ from app.schemas import (
 
 router = APIRouter()
 security = HTTPBearer()
-auth_middleware = AuthMiddleware()
 
 
 # ==================== 获取整改工单列表 ====================
@@ -62,7 +61,7 @@ async def get_rectification_orders(
         整改工单列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -156,7 +155,7 @@ async def batch_create_rectification_orders(
         创建结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -265,7 +264,7 @@ async def submit_rectification_evidence(
         提交结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     

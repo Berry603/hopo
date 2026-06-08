@@ -12,7 +12,7 @@ import json
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.middleware.auth import AuthMiddleware
+from app.core.auth_utils import decode_token
 from app.models.data_quality import (
     QualityRule,
     QualityReport,
@@ -29,7 +29,6 @@ from app.schemas import (
 
 router = APIRouter()
 security = HTTPBearer()
-auth_middleware = AuthMiddleware()
 
 
 # ==================== 数据质量规则管理 ====================
@@ -60,7 +59,7 @@ async def get_quality_rules(
         数据质量规则列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -133,7 +132,7 @@ async def create_quality_rule(
         创建结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -202,7 +201,7 @@ async def get_quality_reports(
         数据质量报告列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -272,7 +271,7 @@ async def get_sync_status(
         同步状态列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     

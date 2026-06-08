@@ -69,6 +69,11 @@ from app.models.audit_log import (
     AuditLog,
     SensitiveDataAccess,
 )
+from app.models.template import (
+    WorksheetTemplate,
+    TemplateCategory,
+    CATEGORY_LABELS,
+)
 
 # 导出所有模型
 __all__ = [
@@ -140,4 +145,9 @@ __all__ = [
     # 审计日志
     "AuditLog",
     "SensitiveDataAccess",
+    
+    # 模板管理
+    "WorksheetTemplate",
+    "TemplateCategory",
+    "CATEGORY_LABELS",
 ]

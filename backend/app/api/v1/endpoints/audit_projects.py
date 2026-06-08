@@ -12,7 +12,7 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.middleware.auth import AuthMiddleware
+from app.core.auth_utils import decode_token
 from app.models.audit_project import (
     AuditProject,
     AuditType,
@@ -27,7 +27,6 @@ from app.schemas import (
 
 router = APIRouter()
 security = HTTPBearer()
-auth_middleware = AuthMiddleware()
 
 
 # ==================== 获取审计项目列表 ====================
@@ -60,7 +59,7 @@ async def get_audit_projects(
         审计项目列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -143,7 +142,7 @@ async def get_audit_project(
         审计项目详情
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -213,7 +212,7 @@ async def create_audit_project(
         创建结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -288,7 +287,7 @@ async def update_audit_project(
         更新结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -358,7 +357,7 @@ async def delete_audit_project(
         删除结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     

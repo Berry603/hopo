@@ -3,44 +3,28 @@
 Logging Middleware
 """
 
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
 from loguru import logger
 import time
 import json
 
 
-class LoggingMiddleware:
+class LoggingMiddleware(BaseHTTPMiddleware):
     """
     日志记录中间件
     记录请求和响应信息
     """
     
-    async def __call__(self, request: Request):
-        """
-        中间件调用方法
-        
-        Args:
-            request: FastAPI请求对象
-        """
-        # 记录请求开始
+    async def dispatch(self, request: Request, call_next):
+        """处理请求"""
         start_time = time.time()
         
-        # 获取请求信息
-        request_info = {
-            "method": request.method,
-            "url": str(request.url),
-            "client_host": request.client.host if request.client else "unknown",
-            "user_agent": request.headers.get("user-agent", "unknown"),
-        }
+        logger.debug(f"请求: {request.method} {request.url.path}")
         
-        logger.debug(f"请求开始: {json.dumps(request_info, ensure_ascii=False)}")
+        response = await call_next(request)
         
-        # 继续处理请求
-        response = None
-        
-        # 记录响应
         process_time = time.time() - start_time
-        if response:
-            logger.debug(f"请求结束: {request.method} {request.url.path} - 状态: {response.status_code} - 耗时: {process_time:.3f}s")
+        logger.debug(f"响应: {request.method} {request.url.path} - {response.status_code} - {process_time:.3f}s")
         
-        return
+        return response

@@ -13,7 +13,7 @@ import json
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.middleware.auth import AuthMiddleware
+from app.core.auth_utils import decode_token
 from app.models.risk import (
     RiskRule,
     RiskAlert,
@@ -30,7 +30,6 @@ from app.schemas import (
 
 router = APIRouter()
 security = HTTPBearer()
-auth_middleware = AuthMiddleware()
 
 
 # ==================== 风险规则管理 ====================
@@ -61,7 +60,7 @@ async def get_risk_rules(
         风险规则列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -134,7 +133,7 @@ async def create_risk_rule(
         创建结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -219,7 +218,7 @@ async def get_risk_alerts(
         风险预警事件列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -304,7 +303,7 @@ async def confirm_risk_alert(
         确认结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -352,7 +351,7 @@ async def trigger_risk_scan(
     """
     from app.services.risk_engine import RiskEngineService
     
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     
     try:

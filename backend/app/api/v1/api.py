@@ -18,6 +18,7 @@ from app.api.v1.endpoints import rectification
 from app.api.v1.endpoints import knowledge
 from app.api.v1.endpoints import data_quality
 from app.api.v1.endpoints import query
+from app.api.v1.endpoints import templates
 
 
 # 注册路由
@@ -29,5 +30,6 @@ api_router.include_router(rectification.router, prefix="/rectification", tags=["
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["知识管理中心"])
 api_router.include_router(data_quality.router, prefix="/data-quality", tags=["数据治理与质量中心"])
 api_router.include_router(query.router, prefix="/query", tags=["智能查询中心"])
+api_router.include_router(templates.router, tags=["底稿模板管理"])
 
 logger.info("API v1 路由注册完成")

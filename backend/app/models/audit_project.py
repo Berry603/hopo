@@ -86,6 +86,7 @@ class AuditProject(Base):
     created_by = relationship("User", foreign_keys=[created_by_id], backref="created_projects")
     tasks = relationship("AuditTask", back_populates="project", cascade="all, delete-orphan")
     findings = relationship("AuditFinding", back_populates="project", cascade="all, delete-orphan")
+    rectification_orders = relationship("RectificationOrder", back_populates="project")
     
     def __repr__(self):
         return f"<AuditProject {self.project_code} - {self.project_name}>"

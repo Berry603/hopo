@@ -12,7 +12,7 @@ import json
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.middleware.auth import AuthMiddleware
+from app.core.auth_utils import decode_token
 from app.models.knowledge import (
     KnowledgeItem,
     KnowledgeType,
@@ -25,7 +25,6 @@ from app.schemas import (
 
 router = APIRouter()
 security = HTTPBearer()
-auth_middleware = AuthMiddleware()
 
 
 # ==================== 统一知识检索 ====================
@@ -54,7 +53,7 @@ async def search_knowledge(
         知识列表
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -136,7 +135,7 @@ async def get_knowledge_item(
         知识详情
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     
@@ -213,7 +212,7 @@ async def create_case_study(
         创建结果
     """
     # 验证Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     current_user_id = payload.get("sub")
     current_user = db.query(User).filter(User.id == current_user_id).first()
     

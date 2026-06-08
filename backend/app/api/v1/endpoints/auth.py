@@ -11,7 +11,7 @@ from typing import Dict, Any
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.middleware.auth import AuthMiddleware
+from app.core.auth_utils import create_access_token, decode_token
 from app.models.user import User, UserRole
 from app.schemas import (
     UserCreate,
@@ -23,7 +23,6 @@ from app.schemas import (
 
 router = APIRouter()
 security = HTTPBearer()
-auth_middleware = AuthMiddleware()
 
 # ==================== 用户注册 ====================
 
@@ -133,10 +132,10 @@ async def login(user_login: UserLogin, db: Session = Depends(get_db)):
     db.commit()
     
     # 创建Token
-    access_token = auth_middleware.create_access_token(
+    access_token = create_access_token(
         data={"sub": user.id, "username": user.username, "role": user.role}
     )
-    refresh_token = auth_middleware.create_access_token(
+    refresh_token = create_access_token(
         data={"sub": user.id, "type": "refresh"},
         expires_delta=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60,  # 转换为分钟
     )
@@ -174,7 +173,7 @@ async def refresh_token(
         新的Token
     """
     # 解码Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     
     # 检查是否为刷新Token
     if payload.get("type") != "refresh":
@@ -194,7 +193,7 @@ async def refresh_token(
         )
     
     # 创建新的访问Token
-    access_token = auth_middleware.create_access_token(
+    access_token = create_access_token(
         data={"sub": user.id, "username": user.username, "role": user.role}
     )
     
@@ -227,7 +226,7 @@ async def get_current_user(
         用户信息
     """
     # 解码Token
-    payload = auth_middleware.decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
     user_id = payload.get("sub")
     
     # 获取用户
