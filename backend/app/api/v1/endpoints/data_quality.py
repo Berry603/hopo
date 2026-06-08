@@ -18,8 +18,8 @@ from app.models.data_quality import (
     QualityReport,
     SyncStatus,
     DataLineage,
-    DataQualityRuleType,
-    DataQualitySeverityLevel,
+    RuleType as DataQualityRuleType,
+    SeverityLevel as DataQualitySeverityLevel,
 )
 from app.models.user import User, UserRole
 from app.schemas import (
