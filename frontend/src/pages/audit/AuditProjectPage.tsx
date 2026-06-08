@@ -82,7 +82,7 @@ interface Report {
 const mockProjects: AuditProject[] = [
   { id: 'PRJ-2026-001', name: '2026年Q1财务收支专项审计', type: '财务审计', phase: 'execution', status: 'active', manager: '张三', team: ['张三','李四','王五'], startDate: '2026-03-01', endDate: '2026-05-30', progress: 68, findings: 12, worksheets: 8, reportStatus: 'none' },
   { id: 'PRJ-2026-002', name: '采购流程合规性审计', type: '合规审计', phase: 'reporting', status: 'active', manager: '李四', team: ['李四','赵六'], startDate: '2026-04-01', endDate: '2026-06-15', progress: 85, findings: 5, worksheets: 6, reportStatus: 'draft' },
-  { id: 'PRJ-2026-003', name: '固定资产盘点专项审计', type: '运营审计', phase: 'planning', status: 'active', manager: '王五', team: ['王五','孙七'], startDate: '2026-05-15', endDate: '2026-07-30', progress: 15, findings: 0, worksheets: 2, reportStatus: 'none' },
+  { id: 'PRJ-2026-003', name: '固定资产盘点专项审计', type: '运营审计', phase: 'planning', status: 'active', manager: '王五', team: ['王五','孙七'], startDate: '2026-05-15', endDate: '2026-07-30', progress: 15, findings: 1, worksheets: 2, reportStatus: 'none' },
   { id: 'PRJ-2025-012', name: '2025年度全面审计', type: '全面审计', phase: 'closed', status: 'completed', manager: '张三', team: ['张三','李四','王五','赵六'], startDate: '2025-10-01', endDate: '2026-01-31', progress: 100, findings: 23, worksheets: 15, reportStatus: 'published' },
   { id: 'PRJ-2026-004', name: '销售费用专项审计', type: '费用审计', phase: 'execution', status: 'paused', manager: '赵六', team: ['赵六'], startDate: '2026-04-15', endDate: '2026-06-30', progress: 45, findings: 3, worksheets: 4, reportStatus: 'none' },
 ];
@@ -96,11 +96,55 @@ const mockTasks: AuditTask[] = [
 ];
 
 const mockFindings: AuditFinding[] = [
-  { id: 'FND-001', title: '销售费用报销缺少审批签字', projectId: 'PRJ-2026-004', projectName: '销售费用专项审计', severity: 'medium', category: '内控缺陷', status: 'open', amount: 12800, responsibleDept: '销售部', createdAt: '2026-05-20', hasRectification: false },
-  { id: 'FND-002', title: '采购合同未按招标流程执行', projectId: 'PRJ-2026-002', projectName: '采购流程合规性审计', severity: 'high', category: '合规违规', status: 'open', amount: 256000, responsibleDept: '采购部', createdAt: '2026-05-18', hasRectification: true },
-  { id: 'FND-003', title: '固定资产标签缺失率35%', projectId: 'PRJ-2026-003', projectName: '固定资产盘点专项审计', severity: 'low', category: '资产管理', status: 'open', responsibleDept: '生产部', createdAt: '2026-05-22', hasRectification: false },
-  { id: 'FND-004', title: '收入确认时点与合同条款不一致', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'high', category: '财务合规', status: 'resolved', amount: 450000, responsibleDept: '财务部', createdAt: '2026-04-15', hasRectification: true },
-  { id: 'FND-005', title: '备用金超限额未清理', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'medium', category: '资金管理', status: 'closed', amount: 32000, responsibleDept: '行政部', createdAt: '2026-04-20', hasRectification: true },
+  // PRJ-2026-001: 2026年Q1财务收支专项审计 (12条)
+  { id: 'FND-001', title: '收入确认时点与合同条款不一致', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'high', category: '财务合规', status: 'resolved', amount: 450000, responsibleDept: '财务部', createdAt: '2026-04-15', hasRectification: true },
+  { id: 'FND-002', title: '备用金超限额未清理（行政部）', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'medium', category: '资金管理', status: 'closed', amount: 32000, responsibleDept: '行政部', createdAt: '2026-04-20', hasRectification: true },
+  { id: 'FND-003', title: '费用报销单据不完整（Q1 3月）', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'medium', category: '内控缺陷', status: 'open', amount: 18500, responsibleDept: '财务部', createdAt: '2026-04-25', hasRectification: false },
+  { id: 'FND-004', title: '预付账款长期挂账未清理', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'high', category: '财务合规', status: 'open', amount: 1200000, responsibleDept: '财务部', createdAt: '2026-04-28', hasRectification: false },
+  { id: 'FND-005', title: '跨期费用未按权责发生制入账', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'medium', category: '财务合规', status: 'open', amount: 86000, responsibleDept: '财务部', createdAt: '2026-05-02', hasRectification: false },
+  { id: 'FND-006', title: '差旅费标准超出规定上限', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'low', category: '费用管控', status: 'open', amount: 23400, responsibleDept: '人力资源部', createdAt: '2026-05-05', hasRectification: false },
+  { id: 'FND-007', title: '资金划转缺乏授权审批记录', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'high', category: '内控缺陷', status: 'open', amount: 780000, responsibleDept: '财务部', createdAt: '2026-05-08', hasRectification: false },
+  { id: 'FND-008', title: '应收账款账龄超180天未计提坏账', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'medium', category: '财务合规', status: 'open', amount: 340000, responsibleDept: '销售部', createdAt: '2026-05-10', hasRectification: false },
+  { id: 'FND-009', title: '银行余额调节表与账面差异未说明', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'medium', category: '财务合规', status: 'resolved', amount: 5600, responsibleDept: '财务部', createdAt: '2026-05-12', hasRectification: true },
+  { id: 'FND-010', title: '福利费计提比例超过规定标准', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'low', category: '费用管控', status: 'closed', amount: 12000, responsibleDept: '人力资源部', createdAt: '2026-05-14', hasRectification: true },
+  { id: 'FND-011', title: '研发费用加计扣除台账不完整', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'medium', category: '税务合规', status: 'open', amount: 950000, responsibleDept: '研发部', createdAt: '2026-05-16', hasRectification: false },
+  { id: 'FND-012', title: '期末存货计价方法执行不一致', projectId: 'PRJ-2026-001', projectName: '2026年Q1财务收支专项审计', severity: 'high', category: '财务合规', status: 'open', amount: 2100000, responsibleDept: '财务部', createdAt: '2026-05-18', hasRectification: false },
+  // PRJ-2026-002: 采购流程合规性审计 (5条)
+  { id: 'FND-013', title: '采购合同未按招标流程执行', projectId: 'PRJ-2026-002', projectName: '采购流程合规性审计', severity: 'high', category: '合规违规', status: 'open', amount: 256000, responsibleDept: '采购部', createdAt: '2026-05-18', hasRectification: true },
+  { id: 'FND-014', title: '供应商资质审核材料不全', projectId: 'PRJ-2026-002', projectName: '采购流程合规性审计', severity: 'medium', category: '合规违规', status: 'open', amount: 0, responsibleDept: '采购部', createdAt: '2026-05-20', hasRectification: false },
+  { id: 'FND-015', title: '单次采购超权限未履行集体决策', projectId: 'PRJ-2026-002', projectName: '采购流程合规性审计', severity: 'high', category: '内控缺陷', status: 'open', amount: 580000, responsibleDept: '采购部', createdAt: '2026-05-22', hasRectification: false },
+  { id: 'FND-016', title: '采购验收记录与入库单不一致', projectId: 'PRJ-2026-002', projectName: '采购流程合规性审计', severity: 'low', category: '流程缺陷', status: 'open', amount: 34000, responsibleDept: '仓储部', createdAt: '2026-05-25', hasRectification: false },
+  { id: 'FND-017', title: '关联方采购未进行公允价值评估', projectId: 'PRJ-2026-002', projectName: '采购流程合规性审计', severity: 'high', category: '合规违规', status: 'open', amount: 1350000, responsibleDept: '采购部', createdAt: '2026-05-28', hasRectification: false },
+  // PRJ-2026-003: 固定资产盘点专项审计 (1条)
+  { id: 'FND-018', title: '固定资产标签缺失率35%', projectId: 'PRJ-2026-003', projectName: '固定资产盘点专项审计', severity: 'low', category: '资产管理', status: 'open', responsibleDept: '生产部', createdAt: '2026-05-22', hasRectification: false },
+  // PRJ-2026-004: 销售费用专项审计 (3条)
+  { id: 'FND-019', title: '销售费用报销缺少审批签字', projectId: 'PRJ-2026-004', projectName: '销售费用专项审计', severity: 'medium', category: '内控缺陷', status: 'open', amount: 12800, responsibleDept: '销售部', createdAt: '2026-05-20', hasRectification: false },
+  { id: 'FND-020', title: '业务招待费超季度预算20%', projectId: 'PRJ-2026-004', projectName: '销售费用专项审计', severity: 'medium', category: '费用管控', status: 'open', amount: 45600, responsibleDept: '销售部', createdAt: '2026-05-23', hasRectification: false },
+  { id: 'FND-021', title: '促销费用缺乏活动效果评估', projectId: 'PRJ-2026-004', projectName: '销售费用专项审计', severity: 'low', category: '流程缺陷', status: 'open', amount: 89000, responsibleDept: '市场部', createdAt: '2026-05-26', hasRectification: false },
+  // PRJ-2025-012: 2025年度全面审计 (23条)
+  { id: 'FND-022', title: '年度预算执行偏差率超15%未及时预警', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '预算管理', status: 'closed', amount: 4200000, responsibleDept: '财务部', createdAt: '2025-11-05', hasRectification: true },
+  { id: 'FND-023', title: '关联方交易披露不完整', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '合规违规', status: 'closed', amount: 8900000, responsibleDept: '财务部', createdAt: '2025-11-08', hasRectification: true },
+  { id: 'FND-024', title: '信息系统访问权限未及时回收', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '信息安全', status: 'closed', amount: 0, responsibleDept: 'IT部', createdAt: '2025-11-10', hasRectification: true },
+  { id: 'FND-025', title: '固定资产折旧政策执行不统一', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '财务合规', status: 'closed', amount: 560000, responsibleDept: '财务部', createdAt: '2025-11-12', hasRectification: true },
+  { id: 'FND-026', title: '薪酬核算与考勤记录差异', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '人力资源', status: 'closed', amount: 120000, responsibleDept: '人力资源部', createdAt: '2025-11-15', hasRectification: true },
+  { id: 'FND-027', title: '仓库盘点差异率超3%未查明原因', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '资产管理', status: 'closed', amount: 780000, responsibleDept: '仓储部', createdAt: '2025-11-18', hasRectification: true },
+  { id: 'FND-028', title: '工程项目预算追加未经董事会批准', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '内控缺陷', status: 'closed', amount: 3200000, responsibleDept: '工程部', createdAt: '2025-11-20', hasRectification: true },
+  { id: 'FND-029', title: '研发项目结转资本化比例偏高', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '财务合规', status: 'closed', amount: 1500000, responsibleDept: '研发部', createdAt: '2025-11-22', hasRectification: true },
+  { id: 'FND-030', title: '销售返利核算方式变更未披露', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '财务合规', status: 'closed', amount: 2300000, responsibleDept: '销售部', createdAt: '2025-11-25', hasRectification: true },
+  { id: 'FND-031', title: '子公司内部控制报告未按时提交', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '合规违规', status: 'closed', amount: 0, responsibleDept: '子公司A', createdAt: '2025-11-28', hasRectification: true },
+  { id: 'FND-032', title: '合同管理台账不完整（遗漏47份）', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '流程缺陷', status: 'closed', amount: 0, responsibleDept: '法务部', createdAt: '2025-12-01', hasRectification: true },
+  { id: 'FND-033', title: '税务申报数据与账簿数据不一致', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '税务合规', status: 'closed', amount: 1890000, responsibleDept: '财务部', createdAt: '2025-12-03', hasRectification: true },
+  { id: 'FND-034', title: '对外担保未履行信息披露义务', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '合规违规', status: 'closed', amount: 5000000, responsibleDept: '财务部', createdAt: '2025-12-05', hasRectification: true },
+  { id: 'FND-035', title: '员工费用报销重复提交审核未发现', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '内控缺陷', status: 'closed', amount: 68000, responsibleDept: '财务部', createdAt: '2025-12-08', hasRectification: true },
+  { id: 'FND-036', title: '客户信用额度超限未触发预警', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '风险管理', status: 'closed', amount: 340000, responsibleDept: '销售部', createdAt: '2025-12-10', hasRectification: true },
+  { id: 'FND-037', title: '印章使用记录缺失（Q3-Q4）', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'low', category: '内控缺陷', status: 'closed', amount: 0, responsibleDept: '行政部', createdAt: '2025-12-12', hasRectification: true },
+  { id: 'FND-038', title: '外包服务验收缺乏量化考核指标', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'low', category: '流程缺陷', status: 'closed', amount: 450000, responsibleDept: '采购部', createdAt: '2025-12-15', hasRectification: true },
+  { id: 'FND-039', title: '应付账款账龄分析异常（长期挂账）', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '财务合规', status: 'closed', amount: 2100000, responsibleDept: '财务部', createdAt: '2025-12-17', hasRectification: true },
+  { id: 'FND-040', title: '股权激励方案执行条件未达标却正常授予', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '合规违规', status: 'closed', amount: 0, responsibleDept: '人力资源部', createdAt: '2025-12-19', hasRectification: true },
+  { id: 'FND-041', title: '安全生产费计提及使用记录不规范', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '合规违规', status: 'closed', amount: 230000, responsibleDept: '安全环保部', createdAt: '2025-12-21', hasRectification: true },
+  { id: 'FND-042', title: '物流外包服务价格高于市场均价23%', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '成本管控', status: 'closed', amount: 890000, responsibleDept: '供应链部', createdAt: '2025-12-23', hasRectification: true },
+  { id: 'FND-043', title: '年末大额资产转让未进行资产评估', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'high', category: '资产管理', status: 'closed', amount: 6800000, responsibleDept: '财务部', createdAt: '2025-12-26', hasRectification: true },
+  { id: 'FND-044', title: '子公司间往来账款长期未对账', projectId: 'PRJ-2025-012', projectName: '2025年度全面审计', severity: 'medium', category: '财务合规', status: 'closed', amount: 1450000, responsibleDept: '财务部', createdAt: '2025-12-28', hasRectification: true },
 ];
 
 const mockReports: Report[] = [
