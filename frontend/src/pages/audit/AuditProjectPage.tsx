@@ -166,6 +166,7 @@ const AuditProjectPage: React.FC = () => {
   const [findings, setFindings] = useState<AuditFinding[]>(mockFindings);
   const [reports, setReports] = useState<Report[]>(mockReports);
   const [activeTab, setActiveTab] = useState('projects');
+  const [findingProjectFilter, setFindingProjectFilter] = useState<string | null>(null);
 
   // Modals / Drawers
   const [projectModalVisible, setProjectModalVisible] = useState(false);
@@ -602,6 +603,14 @@ const AuditProjectPage: React.FC = () => {
               label: <span><FileTextOutlined /> 审计发现</span>,
               children: (
                 <div className="content-card">
+                  {findingProjectFilter && (
+                    <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: '#874d00' }}>
+                        📋 当前仅显示「{projects.find(p => p.id === findingProjectFilter)?.name || findingProjectFilter}」的审计发现
+                      </span>
+                      <Button size="small" type="link" onClick={() => setFindingProjectFilter(null)} style={{ color: '#E34D59', padding: '0 4px' }}>查看全部 ×</Button>
+                    </div>
+                  )}
                   <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
                     <Space>
                       <Input.Search placeholder="搜索发现内容..." allowClear style={{ width: 280 }} prefix={<SearchOutlined />} />
@@ -613,7 +622,7 @@ const AuditProjectPage: React.FC = () => {
                     </Space>
                     <Button type="primary" icon={<PlusOutlined />} onClick={handleAddFinding} style={{ background: '#E34D59', borderColor: '#E34D59' }}>记录发现</Button>
                   </div>
-                  <Table columns={findingColumns} dataSource={findings} rowKey="id" pagination={{ pageSize: 10 }} scroll={{ x: 1300 }} />
+                  <Table columns={findingColumns} dataSource={findingProjectFilter ? findings.filter(f => f.projectId === findingProjectFilter) : findings} rowKey="id" pagination={{ pageSize: 10 }} scroll={{ x: 1300 }} />
                 </div>
               ),
             },
@@ -812,7 +821,7 @@ const AuditProjectPage: React.FC = () => {
                 <Card
                   size="small"
                   hoverable
-                  onClick={() => { setDetailDrawerVisible(false); setActiveTab('findings'); }}
+                  onClick={() => { setDetailDrawerVisible(false); setActiveTab('findings'); setFindingProjectFilter(selectedProject.id); }}
                   style={{ cursor: 'pointer' }}
                 >
                   <Statistic title="审计发现" value={selectedProject.findings} />
