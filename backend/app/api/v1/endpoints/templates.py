@@ -4,7 +4,7 @@ Worksheet Template Management API
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from loguru import logger
 import os
@@ -18,6 +18,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.api.v1.deps import get_current_user, require_permission
 from app.models.template import WorksheetTemplate, TemplateCategory, CATEGORY_LABELS
 
 router = APIRouter()
@@ -44,6 +45,7 @@ def list_templates(
     category: Optional[str] = Query(None, description="按分类筛选"),
     keyword: Optional[str] = Query(None, description="按名称搜索"),
     file_type: Optional[str] = Query(None, description="按文件类型筛选"),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """获取底稿模板列表"""
@@ -61,29 +63,37 @@ def list_templates(
     templates = query.order_by(WorksheetTemplate.is_preset.desc(), WorksheetTemplate.created_at.desc()).all()
     
     return {
-        "total": len(templates),
-        "items": [t.to_dict() for t in templates],
+        "code": 200,
+        "message": "获取成功",
+        "data": {
+            "total": len(templates),
+            "items": [t.to_dict() for t in templates],
+        },
     }
 
 
 @router.get("/templates/categories")
-def list_categories():
+def list_categories(current_user = Depends(get_current_user)):
     """获取模板分类列表"""
     return {
-        "items": [
-            {"value": cat.value, "label": CATEGORY_LABELS[cat]}
-            for cat in TemplateCategory
-        ]
+        "code": 200,
+        "message": "获取成功",
+        "data": {
+            "items": [
+                {"value": cat.value, "label": CATEGORY_LABELS[cat]}
+                for cat in TemplateCategory
+            ],
+        },
     }
 
 
 @router.get("/templates/{template_id}")
-def get_template(template_id: str, db: Session = Depends(get_db)):
+def get_template(template_id: str, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     """获取模板详情"""
     template = db.query(WorksheetTemplate).filter(WorksheetTemplate.id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail=f"模板 {template_id} 不存在")
-    return template.to_dict()
+    return {"code": 200, "message": "获取成功", "data": template.to_dict()}
 
 
 @router.post("/templates/upload")
@@ -92,6 +102,8 @@ async def upload_template(
     category: str = Form(default=TemplateCategory.OTHER.value, description="模板分类"),
     description: Optional[str] = Form(default=None, description="模板描述"),
     file: UploadFile = File(..., description="模板文件"),
+    current_user = Depends(get_current_user),
+    _ = Depends(require_permission("audit:workpaper:edit")),
     db: Session = Depends(get_db),
 ):
     """上传底稿模板文件"""
@@ -149,13 +161,14 @@ async def upload_template(
     
     logger.info(f"模板上传成功: {template_id} - {name} ({file.filename}, {file_size} bytes)")
     
-    return {"success": True, "data": template.to_dict(), "message": f"模板「{name}」上传成功"}
+    return {"code": 200, "message": f"模板「{name}」上传成功", "data": template.to_dict()}
 
 
 @router.get("/templates/{template_id}/download")
 def download_template(
     template_id: str,
     format: Optional[str] = Query(None, description="下载格式: xlsx 或 csv"),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """下载模板文件（支持 xlsx/csv 格式切换）"""
@@ -234,7 +247,7 @@ def download_template(
 
 
 @router.delete("/templates/{template_id}")
-def delete_template(template_id: str, db: Session = Depends(get_db)):
+def delete_template(template_id: str, current_user = Depends(get_current_user), _ = Depends(require_permission("audit:workpaper:edit")), db: Session = Depends(get_db)):
     """删除模板"""
     template = db.query(WorksheetTemplate).filter(WorksheetTemplate.id == template_id).first()
     if not template:
@@ -243,14 +256,14 @@ def delete_template(template_id: str, db: Session = Depends(get_db)):
     if template.is_preset:
         raise HTTPException(status_code=403, detail="系统预设模板不可删除")
     
-    # 删除文件
+    # 删除文件（物理删除）
     if os.path.exists(template.file_path):
         os.remove(template.file_path)
-    
-    # 删除记录
-    db.delete(template)
+
+    # 软删除记录
+    template.soft_delete(deleted_by_id=current_user.id)
     db.commit()
+
+    logger.info(f"模板已软删除: {template_id} - {template.name}")
     
-    logger.info(f"模板已删除: {template_id} - {template.name}")
-    
-    return {"success": True, "message": f"模板「{template.name}」已删除"}
+    return {"code": 200, "message": f"模板「{template.name}」已删除", "data": None}

@@ -32,7 +32,6 @@ import {
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
 const SettingsPage: React.FC = () => {
   const [form] = Form.useForm();
@@ -78,12 +77,7 @@ const SettingsPage: React.FC = () => {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="notifyMethod" label="通知方式" initialValue="in_app">
-                    <Select>
-                      <Option value="in_app">站内通知</Option>
-                      <Option value="email">邮件通知</Option>
-                      <Option value="sms">短信通知</Option>
-                      <Option value="all">全部方式</Option>
-                    </Select>
+                    <Select options={[{value:'in_app',label:'站内通知'},{value:'email',label:'邮件通知'},{value:'sms',label:'短信通知'},{value:'all',label:'全部方式'}]} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -107,12 +101,7 @@ const SettingsPage: React.FC = () => {
               <Row gutter={24}>
                 <Col span={12}>
                   <Form.Item name="sessionTimeout" label="会话超时（分钟）" initialValue={30}>
-                    <Select>
-                      <Option value={15}>15 分钟</Option>
-                      <Option value={30}>30 分钟</Option>
-                      <Option value={60}>60 分钟</Option>
-                      <Option value={120}>120 分钟</Option>
-                    </Select>
+                    <Select options={[{value:15,label:'15 分钟'},{value:30,label:'30 分钟'},{value:60,label:'60 分钟'},{value:120,label:'120 分钟'}]} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -127,12 +116,7 @@ const SettingsPage: React.FC = () => {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="passwordExpire" label="密码过期天数">
-                    <Select defaultValue={90}>
-                      <Option value={30}>30 天</Option>
-                      <Option value={60}>60 天</Option>
-                      <Option value={90}>90 天</Option>
-                      <Option value={0}>永不过期</Option>
-                    </Select>
+                    <Select defaultValue={90} options={[{value:30,label:'30 天'},{value:60,label:'60 天'},{value:90,label:'90 天'},{value:0,label:'永不过期'}]} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -159,20 +143,12 @@ const SettingsPage: React.FC = () => {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="language" label="语言" initialValue="zh-CN">
-                    <Select>
-                      <Option value="zh-CN">简体中文</Option>
-                      <Option value="en-US">English</Option>
-                    </Select>
+                    <Select options={[{value:'zh-CN',label:'简体中文'},{value:'en-US',label:'English'}]} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item name="pageSize" label="每页显示条数" initialValue={20}>
-                    <Select>
-                      <Option value={10}>10 条</Option>
-                      <Option value={20}>20 条</Option>
-                      <Option value={50}>50 条</Option>
-                      <Option value={100}>100 条</Option>
-                    </Select>
+                    <Select options={[{value:10,label:'10 条'},{value:20,label:'20 条'},{value:50,label:'50 条'},{value:100,label:'100 条'}]} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -208,7 +184,7 @@ const SettingsPage: React.FC = () => {
                   </Popconfirm>
                   <Popconfirm
                     title="确认重置所有设置？此操作不可逆！"
-                    onConfirm={() => message.success('设置已重置为默认值')}
+                    onConfirm={() => { form.resetFields(); message.success('设置已重置为默认值'); }}
                     okText="确认"
                     cancelText="取消"
                   >

@@ -11,6 +11,7 @@ from enum import Enum as PyEnum
 import uuid
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 class OrderStatus(str, PyEnum):
@@ -23,7 +24,7 @@ class OrderStatus(str, PyEnum):
     ARCHIVED = "archived"             # 已归档
 
 
-class RectificationOrder(Base):
+class RectificationOrder(Base, SoftDeleteMixin):
     """
     整改工单表
     """
@@ -69,7 +70,7 @@ class RectificationOrder(Base):
     # 关系
     finding = relationship("AuditFinding", back_populates="rectification_orders")
     project = relationship("AuditProject", back_populates="rectification_orders")
-    evidences = relationship("RectificationEvidence", back_populates="order", cascade="all, delete-orphan")
+    evidences = relationship("RectificationEvidence", back_populates="order", cascade="save-update, merge")
     
     def __repr__(self):
         return f"<RectificationOrder {self.order_id} - {self.title}>"
@@ -87,7 +88,7 @@ class RectificationOrder(Base):
         return (self.deadline - date.today()).days
 
 
-class RectificationEvidence(Base):
+class RectificationEvidence(Base, SoftDeleteMixin):
     """
     整改证据表
     """

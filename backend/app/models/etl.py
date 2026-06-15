@@ -14,6 +14,7 @@ from sqlalchemy.orm import relationship
 import enum
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 def generate_uuid() -> str:
@@ -48,7 +49,7 @@ class DataSourceTypeEnum(str, enum.Enum):
 
 
 # --- 数据源配置表 ---
-class DataSourceConfigModel(Base):
+class DataSourceConfigModel(Base, SoftDeleteMixin):
     """数据源配置"""
     __tablename__ = "ds_configs"
 
@@ -74,7 +75,7 @@ class DataSourceConfigModel(Base):
 
 
 # --- 同步任务表 ---
-class SyncTaskModel(Base):
+class SyncTaskModel(Base, SoftDeleteMixin):
     """ETL同步任务"""
     __tablename__ = "etl_sync_tasks"
 

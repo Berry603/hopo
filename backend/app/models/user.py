@@ -11,6 +11,7 @@ from enum import Enum as PyEnum
 import uuid
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 class UserRole(str, PyEnum):
@@ -23,7 +24,7 @@ class UserRole(str, PyEnum):
     VIEWER = "viewer"
 
 
-class User(Base):
+class User(Base, SoftDeleteMixin):
     """
     用户表模型
     """

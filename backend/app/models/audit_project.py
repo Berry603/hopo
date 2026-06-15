@@ -11,6 +11,7 @@ from enum import Enum as PyEnum
 import uuid
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 class AuditType(str, PyEnum):
@@ -21,6 +22,7 @@ class AuditType(str, PyEnum):
     IT = "it"                         # IT审计
     SPECIAL = "special"               # 专项审计
     FOLLOW_UP = "follow_up"           # 后续审计
+    PROCUREMENT = "procurement"       # 采购审计
 
 
 class AuditPhase(str, PyEnum):
@@ -44,7 +46,7 @@ class ProjectStatus(str, PyEnum):
     CANCELLED = "cancelled"            # 已取消
 
 
-class AuditProject(Base):
+class AuditProject(Base, SoftDeleteMixin):
     """
     审计项目表模型
     """
@@ -56,7 +58,9 @@ class AuditProject(Base):
     
     # 审计类型和阶段
     audit_type = Column(SQLEnum(AuditType), nullable=False, comment="审计类型")
-    current_phase = Column(SQLEnum(AuditPhase), default=AuditPhase.PLANNING, comment="当前阶段")
+    # 遗留缓存列（由 project_state_service.sync_project_current_phase 自动同步）
+    # 外部不应直接写入此列；应通过 PhaseProgress 更新后自动同步
+    _current_phase = Column("current_phase", SQLEnum(AuditPhase), default=AuditPhase.PLANNING, comment="当前阶段（缓存，由PhaseProgress派生）")
     status = Column(SQLEnum(ProjectStatus), default=ProjectStatus.DRAFT, comment="项目状态")
     
     # 目标部门
@@ -84,9 +88,27 @@ class AuditProject(Base):
     # 关系
     project_manager = relationship("User", foreign_keys=[project_manager_id], backref="managed_projects")
     created_by = relationship("User", foreign_keys=[created_by_id], backref="created_projects")
-    tasks = relationship("AuditTask", back_populates="project", cascade="all, delete-orphan")
-    findings = relationship("AuditFinding", back_populates="project", cascade="all, delete-orphan")
+    tasks = relationship("AuditTask", back_populates="project", cascade="save-update, merge")
+    findings = relationship("AuditFinding", back_populates="project", cascade="save-update, merge")
     rectification_orders = relationship("RectificationOrder", back_populates="project")
-    
+
+    @property
+    def current_phase(self) -> AuditPhase:
+        """
+        从 PhaseProgress 派生的当前阶段（单一数据源）
+
+        优先读取缓存列 _current_phase，它由 project_state_service 在每次
+        PhaseProgress 更新后自动同步。如果缓存未设置（旧数据），fallback 返回 PLANNING。
+        外部代码不应直接写入 _current_phase，应通过 PhaseProgress 更新触发同步。
+        """
+        if self._current_phase:
+            return self._current_phase
+        return AuditPhase.PLANNING
+
+    @current_phase.setter
+    def current_phase(self, value):
+        """兼容旧代码的 setter — 实际写入缓存列"""
+        self._current_phase = value
+
     def __repr__(self):
         return f"<AuditProject {self.project_code} - {self.project_name}>"

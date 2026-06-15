@@ -8,8 +8,17 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html, body {
   height: 100%;
+  overflow: hidden;
+  font-family: @font-family;
+  font-size: @font-size-base;
+  background-color: @bg-color;
+  color: @text-color-primary;
+}
+
+#root {
+  min-height: 100%;
   font-family: @font-family;
   font-size: @font-size-base;
   background-color: @bg-color;
@@ -81,8 +90,8 @@ html, body, #root {
 
 /* 页面内容 */
 .page-content {
-  padding: 24px;
-  min-height: calc(100vh - 64px - 48px);
+  padding: 12px;
+  min-height: calc(100vh - 64px - 24px);
 }
 
 /* 通用页面容器 */

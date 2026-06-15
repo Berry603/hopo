@@ -11,6 +11,7 @@ from enum import Enum as PyEnum
 import uuid
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 class FindingSeverity(str, PyEnum):
@@ -47,7 +48,7 @@ class WorksheetStatus(str, PyEnum):
     REJECTED = "rejected"           # 已退回
 
 
-class AuditFinding(Base):
+class AuditFinding(Base, SoftDeleteMixin):
     """
     审计发现表
     """
@@ -75,6 +76,9 @@ class AuditFinding(Base):
     amount_involved = Column(String(50), nullable=True, comment="涉及金额")
     financial_impact = Column(String(50), nullable=True, comment="财务影响")
     
+    # 来源追溯
+    source_alert_id = Column(String(36), ForeignKey("risk_alerts.id"), nullable=True, comment="来源风险预警ID")
+
     # 审计依据
     audit_basis = Column(Text, nullable=True, comment="审计依据")
     
@@ -93,6 +97,7 @@ class AuditFinding(Base):
     # 关系
     project = relationship("AuditProject", back_populates="findings")
     discovered_by = relationship("User", backref="discovered_findings")
+    source_alert = relationship("RiskAlert", backref="generated_findings")
     rectification_orders = relationship("RectificationOrder", back_populates="finding")
     worksheets = relationship("AuditWorksheet", back_populates="finding")
     
@@ -100,7 +105,7 @@ class AuditFinding(Base):
         return f"<AuditFinding {self.finding_id} - {self.title}>"
 
 
-class AuditTask(Base):
+class AuditTask(Base, SoftDeleteMixin):
     """
     审计任务表
     """
@@ -145,7 +150,7 @@ class AuditTask(Base):
         return f"<AuditTask {self.task_id} - {self.task_name}>"
 
 
-class AuditWorksheet(Base):
+class AuditWorksheet(Base, SoftDeleteMixin):
     """
     审计底稿表
     """

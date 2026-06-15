@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"F:\\\\AuditSystem\\\\intelligent-audit-system\" show HEAD --stat)",
+      "Bash(npx vite *)",
+      "Bash(python -c ' *)",
+      "Bash(python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['data']['access_token']\\)\")",
+      "Bash(powershell -Command \"Get-Process python* | Stop-Process -Force -ErrorAction SilentlyContinue\")",
+      "Bash(curl -s http://localhost:8000/api/v1/auth/login -X POST -H 'Content-Type: application/json' -d '{\\\\\"username\\\\\":\\\\\"admin\\\\\",\\\\\"password\\\\\":\\\\\"admin123\\\\\"}')",
+      "Bash(curl -s \"http://localhost:8000/api/v1/audit/projects/worksheet-templates\" -H \"Authorization: Bearer $\\(curl -s http://localhost:8000/api/v1/auth/login -X POST -H 'Content-Type: application/json' -d '{\\\\\"username\\\\\":\\\\\"admin\\\\\",\\\\\"password\\\\\":\\\\\"admin123\\\\\"}')"
+    ]
+  }
+}

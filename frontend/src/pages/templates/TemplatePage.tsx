@@ -14,10 +14,10 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
 import type { RcFile } from 'antd/es/upload';
+import { getTemplates, getTemplateCategories, uploadTemplate, deleteTemplate, getTemplateDownloadUrl } from '@/services/knowledge';
 import './TemplatePage.less';
 
 const { Content } = Layout;
-const { Option } = Select;
 const { Text, Paragraph } = Typography;
 
 // ==================== Types ====================
@@ -42,11 +42,6 @@ interface TemplateItem {
 interface CategoryItem {
   value: string;
   label: string;
-}
-
-interface TemplateListResponse {
-  total: number;
-  items: TemplateItem[];
 }
 
 // ==================== Helpers ====================
@@ -102,13 +97,11 @@ const TemplatePage: React.FC = () => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterCategory) params.append('category', filterCategory);
-      if (searchKeyword) params.append('keyword', searchKeyword);
-
-      const res = await fetch(`/api/v1/templates?${params.toString()}`);
-      const data: TemplateListResponse = await res.json();
-      setTemplates(data.items || []);
+      const data = await getTemplates({
+        category: filterCategory || undefined,
+        keyword: searchKeyword || undefined,
+      });
+      setTemplates((data?.data as any)?.items || []);
     } catch (err) {
       message.error('获取模板列表失败');
       console.error(err);
@@ -119,9 +112,8 @@ const TemplatePage: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/v1/templates/categories');
-      const data = await res.json();
-      setCategories(data.items || []);
+      const data = await getTemplateCategories();
+      setCategories((data?.data as any)?.items || []);
     } catch (err) {
       console.error('获取分类失败', err);
     }
@@ -161,18 +153,14 @@ const TemplatePage: React.FC = () => {
       const file = fileList[0].originFileObj as RcFile;
       formData.append('file', file);
 
-      const res = await fetch('/api/v1/templates/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
+      const data = await uploadTemplate(formData);
 
-      if (data.success) {
+      if (data?.code === 200) {
         message.success(data.message || '模板上传成功');
         setUploadModalVisible(false);
         fetchTemplates();
       } else {
-        message.error(data.detail || '上传失败');
+        message.error(data?.message || '上传失败');
       }
     } catch (err: any) {
       if (err.errorFields) return;
@@ -183,16 +171,28 @@ const TemplatePage: React.FC = () => {
     }
   };
 
-  const handleDownload = (template: TemplateItem) => {
-    const link = document.createElement('a');
-    link.href = `/api/v1/templates/${template.id}/download`;
-    link.download = template.file_name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    message.success(`模板「${template.name}」下载已开始`);
-    // 延迟刷新以下载计数更新
-    setTimeout(() => fetchTemplates(), 500);
+  const handleDownload = async (template: TemplateItem) => {
+    try {
+      const response = await fetch(getTemplateDownloadUrl(template.id), {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        },
+      });
+      if (!response.ok) throw new Error('下载失败');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = template.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      message.success(`模板「${template.name}」下载已开始`);
+      setTimeout(() => fetchTemplates(), 500);
+    } catch {
+      message.error('下载失败');
+    }
   };
 
   const handleDelete = async (template: TemplateItem) => {
@@ -201,13 +201,12 @@ const TemplatePage: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`/api/v1/templates/${template.id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
+      const data = await deleteTemplate(template.id);
+      if (data?.code === 200) {
         message.success(data.message || '删除成功');
         fetchTemplates();
       } else {
-        message.error(data.detail || '删除失败');
+        message.error(data?.message || '删除失败');
       }
     } catch (err) {
       message.error('删除失败');
@@ -367,21 +366,12 @@ const TemplatePage: React.FC = () => {
 
   return (
     <Layout className="template-page">
-      <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 className="page-title"><FileTextOutlined /> 底稿模板管理</h2>
-            <p className="page-subtitle">管理审计底稿模板，支持模板上传与分类管理</p>
-          </div>
-        </div>
-      </div>
-
       <Content className="page-content">
         {/* Stats Row */}
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col xs={12} sm={6}>
             <Card>
-              <Statistic title="模板总数" value={stats.total} prefix={<FileTextOutlined />} valueStyle={{ color: '#E34D59' }} />
+              <Statistic title="模板总数" value={stats.total} prefix={<FileTextOutlined />} valueStyle={{ color: '#D7011D' }} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
@@ -419,17 +409,14 @@ const TemplatePage: React.FC = () => {
                 placeholder="选择分类"
                 allowClear
                 style={{ width: 140 }}
+                options={categories.map(c => ({ value: c.value, label: c.label }))}
                 value={filterCategory}
                 onChange={(val) => setFilterCategory(val || null)}
-              >
-                {categories.map((c) => (
-                  <Option key={c.value} value={c.value}>{c.label}</Option>
-                ))}
-              </Select>
+              />
             </Space>
             <Space>
               <Button icon={<ReloadOutlined />} onClick={fetchTemplates}>刷新</Button>
-              <Button type="primary" icon={<UploadOutlined />} onClick={handleUpload} style={{ background: '#E34D59', borderColor: '#E34D59' }}>
+              <Button type="primary" icon={<UploadOutlined />} onClick={handleUpload} style={{ background: '#D7011D', borderColor: '#D7011D' }}>
                 上传模板
               </Button>
             </Space>
@@ -476,11 +463,7 @@ const TemplatePage: React.FC = () => {
             initialValue="other"
             rules={[{ required: true, message: '请选择分类' }]}
           >
-            <Select placeholder="选择分类">
-              {categories.map((c) => (
-                <Option key={c.value} value={c.value}>{c.label}</Option>
-              ))}
-            </Select>
+            <Select placeholder="选择分类" options={categories.map(c => ({ value: c.value, label: c.label }))} />
           </Form.Item>
           <Form.Item name="description" label="模板描述">
             <Input.TextArea rows={3} placeholder="简要描述模板用途..." />
@@ -488,7 +471,7 @@ const TemplatePage: React.FC = () => {
           <Form.Item label="选择文件" required>
             <Upload.Dragger {...uploadProps} accept=".doc,.docx,.xls,.xlsx,.pdf,.png,.jpg,.jpeg">
               <p className="ant-upload-drag-icon">
-                <UploadOutlined style={{ fontSize: 36, color: '#E34D59' }} />
+                <UploadOutlined style={{ fontSize: 36, color: '#D7011D' }} />
               </p>
               <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
               <p className="ant-upload-hint">

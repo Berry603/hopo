@@ -2,6 +2,7 @@ import React from 'react';
 import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined, AuditOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 import './LoginPage.less';
 
 const { Title, Text } = Typography;
@@ -11,10 +12,12 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
 
+  const loginAction = useAuthStore((s) => s.login);
+
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      // TODO: 调用登录API
+      await loginAction(values.username, values.password);
       message.success('登录成功！');
       navigate('/dashboard');
     } catch (error) {
@@ -29,9 +32,9 @@ const LoginPage: React.FC = () => {
       <Card className="login-card">
         <div className="login-header">
           <div className="login-logo">
-            <AuditOutlined style={{ fontSize: 48, color: '#E34D59' }} />
+            <AuditOutlined style={{ fontSize: 48, color: '#D7011D' }} />
           </div>
-          <Title level={3} style={{ marginTop: 16, color: '#E34D59' }}>HOPO ICMS</Title>
+          <Title level={3} style={{ marginTop: 16, color: '#D7011D' }}>HOPO ICMS</Title>
           <Text type="secondary">企业智能审计系统</Text>
         </div>
 

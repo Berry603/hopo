@@ -11,6 +11,7 @@ from enum import Enum as PyEnum
 import uuid
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 class RiskType(str, PyEnum):
@@ -23,6 +24,9 @@ class RiskType(str, PyEnum):
     INVENTORY = "inventory"           # 库存风险
     CASH = "cash"                     # 资金风险
     IT = "it"                         # IT风险
+    DATA_QUALITY = "data_quality"     # 数据质量风险
+    CONSISTENCY = "consistency"       # 一致性风险
+    CUSTOM = "custom"                 # 自定义风险
 
 
 class SeverityLevel(str, PyEnum):
@@ -46,9 +50,13 @@ class RuleType(str, PyEnum):
     OUTLIER = "outlier"               # 异常值检测
     CONSISTENCY = "consistency"       # 一致性校验
     VOLATILITY = "volatility"         # 波动检测
+    THRESHOLD = "threshold"           # 阈值检测
+    FREQUENCY = "frequency"           # 频率检测
+    EXPENSE_AUDIT = "expense_audit"   # 费用审计
+    GENERIC = "generic"               # 通用条件检测
 
 
-class RiskRule(Base):
+class RiskRule(Base, SoftDeleteMixin):
     """
     风险规则表
     """
@@ -76,7 +84,7 @@ class RiskRule(Base):
     actions = Column(JSON, nullable=True, comment="触发动作")
     
     # 元数据
-    created_by_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="创建人ID")
+    created_by_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="创建人ID")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), comment="更新时间")
     

@@ -1,14 +1,435 @@
-.dq-gauge-card {
-  text-align: center;
-  padding: 16px 0;
+// 数据治理与质量中心 - 样式
+// Data Governance & Quality Center Styles
+
+.data-quality-page {
+  min-height: 100vh;
+  background: #f0f2f5;
+
+  .page-content {
+    padding: 0 16px 16px;
+    margin: 0 auto;
+    max-width: 1600px;
+
+    .ant-tabs {
+      background: #fff;
+      border-radius: 8px;
+      padding: 0 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+      .ant-tabs-nav {
+        margin-bottom: 0;
+      }
+
+      .ant-tabs-content-holder {
+        padding: 20px 12px;
+      }
+    }
+  }
 }
 
+// ==================== 通用卡片 ====================
+
+.dq-stat-card {
+  border-radius: 10px;
+  transition: transform 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .ant-statistic-title {
+    font-size: 13px;
+    color: #8c8c8c;
+    margin-bottom: 4px;
+  }
+}
+
+.dq-chart-card {
+  border-radius: 10px;
+  height: 100%;
+
+  .ant-card-head {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 12px 16px;
+    min-height: auto;
+
+    .ant-card-head-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+  }
+
+  .ant-card-body {
+    padding: 12px 16px;
+  }
+}
+
+.dq-section-card {
+  border-radius: 10px;
+  margin-bottom: 16px;
+
+  .ant-card-head {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 14px 20px;
+
+    .ant-card-head-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+  }
+
+  .ant-card-body {
+    padding: 16px 20px;
+  }
+}
+
+// ==================== 仪表盘 ====================
+
+.dq-gauge-card {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.dq-alert-strip {
+  margin-bottom: 16px;
+
+  .ant-alert {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+}
+
+// 异常项列表
+.dq-anomaly-list {
+  .dq-anomaly-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+
+    &.critical {
+      border-left: 4px solid #f5222d;
+      background: #fff1f0;
+    }
+
+    &.warning {
+      border-left: 4px solid #fa8c16;
+      background: #fff7e6;
+    }
+
+    .anomaly-info {
+      flex: 1;
+
+      .anomaly-title {
+        font-weight: 500;
+        font-size: 13px;
+      }
+
+      .anomaly-detail {
+        font-size: 12px;
+        color: #8c8c8c;
+        margin-top: 2px;
+      }
+    }
+
+    .anomaly-value {
+      text-align: right;
+
+      .value-bold {
+        font-size: 18px;
+        font-weight: 700;
+        color: #f5222d;
+      }
+
+      .value-tag {
+        font-size: 11px;
+      }
+    }
+  }
+}
+
+// ==================== 同步监控 ====================
+
+.dq-sync-dashboard {
+  .sync-stat-row {
+    padding: 8px 0;
+  }
+}
+
+// 延迟指示器
+.dq-delay-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  &.delayed {
+    color: #f5222d;
+    animation: blink-warning 1.5s ease-in-out infinite;
+  }
+
+  &.normal {
+    color: #52c41a;
+  }
+
+  &.warning-level {
+    color: #fa8c16;
+  }
+}
+
+@keyframes blink-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+// 同步状态点
+.dq-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+
+  &.online { background: #52c41a; box-shadow: 0 0 6px rgba(82, 196, 26, 0.6); }
+  &.syncing { background: #1890ff; box-shadow: 0 0 6px rgba(24, 144, 255, 0.6); animation: pulse 1.5s ease-in-out infinite; }
+  &.error { background: #f5222d; box-shadow: 0 0 6px rgba(245, 34, 45, 0.6); }
+  &.offline { background: #d9d9d9; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// ==================== 数据血缘 ====================
+
 .dq-lineage-tree {
-  padding: 12px;
+  padding: 16px;
   background: #fafafa;
   border-radius: 8px;
+  min-height: 320px;
 
   .ant-tree {
     background: transparent;
+
+    .ant-tree-treenode {
+      padding: 4px 0;
+    }
+
+    .ant-tree-node-content-wrapper {
+      padding: 4px 8px;
+      border-radius: 4px;
+
+      &:hover {
+        background: #e6f7ff;
+      }
+    }
   }
+}
+
+.dq-lineage-trace-path {
+  .trace-node {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 0;
+
+    .trace-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-right: 14px;
+      min-width: 28px;
+
+      .trace-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 2px currentColor;
+        z-index: 1;
+      }
+
+      .trace-line {
+        width: 2px;
+        flex: 1;
+        min-height: 32px;
+        background: #d9d9d9;
+        margin: 4px 0;
+      }
+    }
+
+    .trace-content {
+      flex: 1;
+      padding: 12px 16px;
+      background: #fafafa;
+      border-radius: 8px;
+      border-left: 4px solid #1890ff;
+      margin-bottom: 12px;
+
+      &.root { border-left-color: #D7011D; }
+      &.mid { border-left-color: #1890ff; }
+      &.source { border-left-color: #52c41a; }
+    }
+
+    &:last-child .trace-line {
+      display: none;
+    }
+  }
+}
+
+// ==================== 影响分析面板 ====================
+
+.dq-impact-panel {
+  padding: 16px;
+  border-radius: 8px;
+
+  &.high-impact {
+    background: #fff1f0;
+    border: 1px solid #ffa39e;
+  }
+
+  &.medium-impact {
+    background: #fff7e6;
+    border: 1px solid #ffd591;
+  }
+
+  &.low-impact {
+    background: #f6ffed;
+    border: 1px solid #b7eb8f;
+  }
+
+  .impact-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+
+    .impact-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+  }
+
+  .impact-detail {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #595959;
+  }
+}
+
+// ==================== 质量报告 ====================
+
+.dq-report-ranking {
+  .ranking-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .rank-number {
+      font-weight: 700;
+      font-size: 18px;
+      min-width: 32px;
+      text-align: center;
+
+      &.gold { color: #faad14; }
+      &.silver { color: #8c8c8c; }
+      &.bronze { color: #d48806; }
+      &.normal { color: #bfbfbf; }
+    }
+  }
+}
+
+// ==================== 规则配置 ====================
+
+.dq-rule-form {
+  .ant-form-item {
+    margin-bottom: 16px;
+  }
+
+  .form-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #8c8c8c;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f0f0;
+
+    .anticon {
+      margin-right: 6px;
+    }
+  }
+}
+
+// ==================== 筛选栏 ====================
+
+.dq-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  .filter-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .filter-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+// ==================== 响应式 ====================
+
+@media (max-width: 768px) {
+  .data-quality-page .page-content {
+    padding: 0 8px 8px;
+
+    .ant-tabs-content-holder {
+      padding: 12px 4px;
+    }
+  }
+
+  .dq-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+
+    .filter-left, .filter-right {
+      justify-content: flex-start;
+    }
+  }
+}
+
+// ==================== 动画 ====================
+
+.dq-rotate {
+  animation: dq-spin 2s linear infinite;
+}
+
+@keyframes dq-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.dq-fade-in {
+  animation: dq-fade 0.3s ease-in-out;
+}
+
+@keyframes dq-fade {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

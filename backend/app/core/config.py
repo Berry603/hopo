@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-3.5-turbo"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     
+    # LLM 调用配置
+    LLM_TIMEOUT: int = 30          # LLM 请求超时时间（秒）
+    LLM_MAX_RETRIES: int = 3       # LLM 请求最大重试次数
+    LLM_TEMPERATURE: float = 0.7   # LLM 生成温度参数
+    
     # 日志配置
     LOG_LEVEL: str = "INFO"
     LOG_DIR: str = str(BASE_DIR / "logs")

@@ -4,7 +4,6 @@ Knowledge Management Center API Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from loguru import logger
 from typing import List, Optional
@@ -12,19 +11,17 @@ import json
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.auth_utils import decode_token
+from app.api.v1.deps import get_current_user
 from app.models.knowledge import (
     KnowledgeItem,
     KnowledgeType,
 )
-from app.models.user import User, UserRole
 from app.schemas import (
     ResponseModel,
     PaginatedResponse,
 )
 
 router = APIRouter()
-security = HTTPBearer()
 
 
 # ==================== 统一知识检索 ====================
@@ -35,33 +32,22 @@ async def search_knowledge(
     knowledge_type: Optional[str] = Query(None, description="知识类型筛选"),
     tags: Optional[List[str]] = Query(None, description="标签筛选"),
     top_k: int = Query(10, ge=1, le=100, description="返回数量"),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     统一知识检索
-    
+
     Args:
         q: 搜索关键词
         knowledge_type: 知识类型筛选
         tags: 标签筛选
         top_k: 返回数量
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         知识列表
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user or not current_user.is_auditor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 构建查询
     query = db.query(KnowledgeItem)
@@ -120,30 +106,19 @@ async def search_knowledge(
 @router.get("/items/{item_id}", response_model=ResponseModel)
 async def get_knowledge_item(
     item_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     获取知识详情
-    
+
     Args:
         item_id: 知识ID
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         知识详情
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user or not current_user.is_auditor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 获取知识
     item = db.query(KnowledgeItem).filter(KnowledgeItem.id == item_id).first()
@@ -197,30 +172,19 @@ async def get_knowledge_item(
 @router.post("/cases", status_code=status.HTTP_201_CREATED)
 async def create_case_study(
     case_data: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     新增案例（从审计发现转化）
-    
+
     Args:
         case_data: 案例数据
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         创建结果
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user or not current_user.is_auditor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 创建案例
     from app.models.knowledge import CaseStudy

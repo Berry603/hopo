@@ -62,6 +62,24 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=9, minute=0, day_of_week=1),
         "options": {"queue": "report"},
     },
+    # 每日凌晨3点：跨系统一致性校验
+    "dq-cross-system-check": {
+        "task": "app.scheduler.tasks.run_cross_system_check",
+        "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "etl"},
+    },
+    # 每月1日上午8点：月度数据质量报告
+    "dq-monthly-report": {
+        "task": "app.scheduler.tasks.generate_quality_report",
+        "schedule": crontab(hour=8, minute=0, day_of_month=1),
+        "options": {"queue": "report"},
+    },
+    # 每15分钟：同步健康度监控
+    "dq-sync-health-monitor": {
+        "task": "app.scheduler.tasks.monitor_sync_health",
+        "schedule": crontab(minute="*/15"),
+        "options": {"queue": "etl"},
+    },
 }
 
 # 导入任务模块（确保任务被注册）

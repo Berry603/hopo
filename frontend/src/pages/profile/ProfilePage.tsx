@@ -33,7 +33,6 @@ import {
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
-const { Option } = Select;
 
 const ProfilePage: React.FC = () => {
   const [editing, setEditing] = useState(false);
@@ -70,7 +69,7 @@ const ProfilePage: React.FC = () => {
               <Avatar
                 size={100}
                 icon={<UserOutlined />}
-                style={{ backgroundColor: '#E34D59', marginBottom: 16 }}
+                style={{ backgroundColor: '#D7011D', marginBottom: 16 }}
               />
               <Title level={3} style={{ marginBottom: 4 }}>{userInfo.name}</Title>
               <Tag color="red">{userInfo.position}</Tag>
@@ -99,11 +98,11 @@ const ProfilePage: React.FC = () => {
           <Card title="联系方式" style={{ marginTop: 24 }}>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <Space>
-                <MailOutlined style={{ color: '#E34D59' }} />
+                <MailOutlined style={{ color: '#D7011D' }} />
                 <span>{userInfo.email}</span>
               </Space>
               <Space>
-                <PhoneOutlined style={{ color: '#E34D59' }} />
+                <PhoneOutlined style={{ color: '#D7011D' }} />
                 <span>{userInfo.phone}</span>
               </Space>
             </Space>
@@ -177,12 +176,7 @@ const ProfilePage: React.FC = () => {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="department" label="部门">
-                    <Select>
-                      <Option value="审计监察部">审计监察部</Option>
-                      <Option value="财务部">财务部</Option>
-                      <Option value="技术部">技术部</Option>
-                      <Option value="行政部">行政部</Option>
-                    </Select>
+                    <Select options={[{value:'审计监察部',label:'审计监察部'},{value:'财务部',label:'财务部'},{value:'技术部',label:'技术部'},{value:'行政部',label:'行政部'}]} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -192,11 +186,7 @@ const ProfilePage: React.FC = () => {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="location" label="工作地点">
-                    <Select>
-                      <Option value="肇庆总部">肇庆总部</Option>
-                      <Option value="阳江">阳江</Option>
-                      <Option value="深圳">深圳</Option>
-                    </Select>
+                    <Select options={[{value:'肇庆总部',label:'肇庆总部'},{value:'阳江',label:'阳江'},{value:'深圳',label:'深圳'}]} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -214,12 +204,12 @@ const ProfilePage: React.FC = () => {
               <Descriptions.Item label="登录密码">
                 <Space>
                   <span>********</span>
-                  <Button type="link" size="small">修改密码</Button>
+                  <Button type="link" size="small" onClick={() => message.info('修改密码功能开发中')}>修改密码</Button>
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="二次验证">
                 <Tag color="orange">未开启</Tag>
-                <Button type="link" size="small">立即开启</Button>
+                <Button type="link" size="small" onClick={() => message.info('二次验证功能开发中')}>立即开启</Button>
               </Descriptions.Item>
               <Descriptions.Item label="最近登录">
                 <div>

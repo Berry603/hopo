@@ -41,8 +41,12 @@ from app.models.knowledge import (
 from app.models.data_quality import (
     QualityRule,
     QualityReport,
+    QualityScore,
     SyncStatus,
+    SyncSnapshot,
     DataLineage,
+    FieldChangeLog,
+    CrossSystemCheck,
     RuleType as DataQualityRuleType,
     SeverityLevel as DataQualitySeverityLevel,
 )
@@ -69,10 +73,27 @@ from app.models.audit_log import (
     AuditLog,
     SensitiveDataAccess,
 )
+from app.models.audit_procedure import (
+    AuditProcedure,
+    ProcedureItem,
+    ProcedureExecution,
+    ProcedureRow,
+    ProcedureType,
+    ProcedureStatus,
+    ItemDataType,
+)
 from app.models.template import (
     WorksheetTemplate,
     TemplateCategory,
     CATEGORY_LABELS,
+)
+from app.models.evidence_chain import (
+    EvidenceLink,
+)
+from app.models.phase_progress import (
+    PhaseProgress,
+    PhaseStatus,
+    PHASE_DEPENDENCIES,
 )
 
 # 导出所有模型
@@ -118,8 +139,12 @@ __all__ = [
     # 数据质量模型
     "QualityRule",
     "QualityReport",
+    "QualityScore",
     "SyncStatus",
+    "SyncSnapshot",
     "DataLineage",
+    "FieldChangeLog",
+    "CrossSystemCheck",
     "DataQualityRuleType",
     "DataQualitySeverityLevel",
     
@@ -150,4 +175,7 @@ __all__ = [
     "WorksheetTemplate",
     "TemplateCategory",
     "CATEGORY_LABELS",
+
+    # 证据链
+    "EvidenceLink",
 ]

@@ -11,6 +11,7 @@ from enum import Enum as PyEnum
 import uuid
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 class KnowledgeType(str, PyEnum):
@@ -22,7 +23,7 @@ class KnowledgeType(str, PyEnum):
     BEST_PRACTICE = "best_practice"  # 最佳实践
 
 
-class KnowledgeItem(Base):
+class KnowledgeItem(Base, SoftDeleteMixin):
     """
     知识库表（统一知识库）
     """

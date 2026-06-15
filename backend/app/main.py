@@ -75,13 +75,13 @@ def init_preset_templates():
         template_dir = os.path.join(settings.UPLOAD_DIR, "templates")
         os.makedirs(template_dir, exist_ok=True)
 
-        # 先删除旧预设模板记录和文件，确保新格式生效
+        # 先软删除旧预设模板记录，删除文件，确保新格式生效
         old_presets = db.query(WorksheetTemplate).filter(WorksheetTemplate.is_preset == True).all()
         for old in old_presets:
             if os.path.exists(old.file_path):
                 os.remove(old.file_path)
                 logger.info(f"已删除旧模板文件: {old.file_path}")
-            db.delete(old)
+            old.soft_delete(deleted_by_id=None)  # 系统启动时无用户上下文
         db.flush()
 
         # ==================== 4 个 xlsx 模板 ====================
@@ -348,9 +348,35 @@ async def startup_event():
     
     # 初始化数据库表
     init_db()
-    
+
+    # 初始化种子数据（RBAC 权限/角色、默认用户、ERP 示例数据）
+    from app.core.seed import seed_all
+    seed_all()
+
     # 初始化预设模板
     init_preset_templates()
+    
+    # 初始化预设审计程序（穿行测试模板等）
+    from app.models.audit_procedure import AuditProcedure
+    from app.services.preset_procedures import PRESET_PROCEDURES
+    from app.models.audit_procedure import ProcedureItem, ProcedureType, ItemDataType
+    
+    proc_db = SessionLocal()
+    existing_procs = proc_db.query(AuditProcedure).count()
+    if existing_procs == 0:
+        for proc_data in PRESET_PROCEDURES:
+            items_data = proc_data.pop("items", [])
+            proc = AuditProcedure(**proc_data)
+            proc_db.add(proc)
+            proc_db.flush()
+            for item_data in items_data:
+                item = ProcedureItem(procedure_id=proc.id, **item_data)
+                proc_db.add(item)
+        proc_db.commit()
+        logger.info(f"已初始化 {len(PRESET_PROCEDURES)} 个预设审计程序模板")
+    else:
+        logger.info(f"审计程序模板已存在 ({existing_procs} 条)，跳过种子数据")
+    proc_db.close()
 
 
 @app.on_event("shutdown")
@@ -386,7 +412,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         reload=settings.DEBUG,
         log_level="info" if settings.DEBUG else "warning",
     )

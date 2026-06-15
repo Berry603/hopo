@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 from app.adapters.base import BaseDataSourceAdapter, DataSourceConfig
+from app.adapters.kingdee import KingdeeERPAdapter
 
 
 class YunzhijiaOAAdapter(BaseDataSourceAdapter):

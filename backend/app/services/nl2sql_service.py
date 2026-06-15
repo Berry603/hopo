@@ -11,6 +11,8 @@ from datetime import datetime
 from loguru import logger
 
 from app.core.config import settings
+from app.services.llm_client import LLMClient
+from app.services.prompts.nl2sql_prompt import NL2SQL_SYSTEM_PROMPT
 
 
 # ==================== 查询模板库 ====================
@@ -178,6 +180,16 @@ class NL2SQLService:
     6. 结果渲染 → 表格/图表
     """
 
+    def __init__(self, llm_client: Optional[LLMClient] = None):
+        """
+        初始化 NL2SQL 服务
+        
+        Args:
+            llm_client: 可选的 LLMClient 实例，不传则自动创建
+        """
+        self._llm_client = llm_client or LLMClient()
+        logger.info(f"[NL2SQLService] 初始化完成, LLM回退模式: {self._llm_client.is_fallback_mode}")
+
     # 意图关键词映射
     INTENT_KEYWORDS = {
         "费用查询": ["费用", "报销", "支出", "花费"],
@@ -268,50 +280,162 @@ class NL2SQLService:
         return best_match if best_score >= 1 else None
 
     def _execute_template(self, template: QueryTemplate, query: str) -> Dict:
-        """执行查询模板"""
+        """
+        执行查询模板
+        
+        从自然语言中提取参数，填充 SQL 模板，并尝试执行。
+        参数提取使用 LLM 辅助，失败时使用默认值。
+        
+        Args:
+            template: 匹配到的查询模板
+            query: 用户自然语言查询
+            
+        Returns:
+            包含 sql、参数、结果的字典
+        """
         # 从自然语言中提取参数
         params = self._extract_params(query, template.parameters)
         
-        # 实际环境中用参数值填充SQL并执行
+        # 填充 SQL 模板中的参数占位符
+        filled_sql = template.sql_template.strip()
+        for key, value in params.items():
+            if isinstance(value, str):
+                # 字符串类型参数需要加引号
+                placeholder = f":{key}"
+                filled_sql = filled_sql.replace(placeholder, f"'{value}'")
+            elif isinstance(value, (int, float)):
+                placeholder = f":{key}"
+                filled_sql = filled_sql.replace(placeholder, str(value))
+        
         logger.info(f"[NL2SQL] 模板查询: {template.id} params={params}")
+
+        # 安全检查（防卫式编程，防止参数注入改写SQL）
+        if not self._validate_sql(filled_sql):
+            logger.warning(f"[NL2SQL] 填充后SQL未通过安全校验: {filled_sql[:200]}")
+            return {"error": "填充后的SQL不安全", "sql": filled_sql, "template_id": template.id}
+
+        # 尝试执行 SQL
+        results, columns = self._execute(filled_sql)
+        
+        chart_type = template.default_chart
+        if chart_type == "table" and results:
+            # 根据结果自动推荐图表
+            chart_type = self._suggest_chart(query, results)
         
         return {
             "query": query,
-            "sql": template.sql_template.strip(),
-            "chart_type": template.default_chart,
+            "sql": filled_sql,
+            "chart_type": chart_type,
             "parameters": params,
-            "columns": [],
-            "results": [],
-            "row_count": 0,
+            "columns": columns,
+            "results": results,
+            "row_count": len(results),
         }
 
     def _generate_sql(self, query: str, intent: str) -> str:
         """
         LLM驱动的SQL生成
         
-        实际环境调用 OpenAI/本地模型，注入Schema上下文
-        """
-        prompt = f"""你是HOPO企业智能审计系统的数据库查询助手。
-
-数据库Schema:
-{DB_SCHEMA}
-
-用户问题: {query}
-识别的意图: {intent}
-
-要求:
-1. 只生成SELECT语句（只读）
-2. 使用MySQL兼容语法
-3. 不要使用SELECT *
-4. 添加合适的WHERE条件和LIMIT
-5. 只返回纯SQL，不要加解释
-
-SQL:"""
+        构建包含 DB_SCHEMA 的 Prompt，调用 LLMClient 生成 SQL，
+        解析 LLM 回复中的 SQL，做安全检查，失败时降级到回退 SQL。
         
-        # 实际环境: response = openai_client.chat.completions.create(model=..., messages=[...])
-        # 当前返回示例SQL
-        logger.info(f"[NL2SQL] LLM生成SQL: intent={intent}")
+        Args:
+            query: 用户自然语言查询
+            intent: 识别的意图
+            
+        Returns:
+            生成的 SQL 语句
+        """
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 构建系统提示词
+        system_prompt = NL2SQL_SYSTEM_PROMPT.format(
+            db_schema=DB_SCHEMA,
+            current_time=current_time,
+            intent=intent,
+        )
+        
+        user_prompt = f"用户问题: {query}\n\n请根据以上信息生成 SQL 查询语句。"
+        
+        logger.info(f"[NL2SQL] LLM生成SQL: query={query}, intent={intent}")
+        
+        try:
+            # 调用 LLM
+            response = self._llm_client.chat(
+                messages=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.3,  # SQL 生成使用低温度提高准确性
+                max_tokens=1000,
+            )
+            
+            # 从 LLM 回复中提取 SQL
+            sql = self._extract_sql_from_response(response.content)
+            
+            if sql:
+                logger.info(
+                    f"[NL2SQL] LLM生成SQL成功: tokens={response.token_usage}, "
+                    f"elapsed={response.elapsed_seconds:.2f}s"
+                )
+                return sql
+            
+            logger.warning("[NL2SQL] 未能从LLM回复中提取SQL，使用回退SQL")
+            
+        except Exception as e:
+            logger.error(f"[NL2SQL] LLM生成SQL异常: {e}")
+        
+        # LLM 调用失败时使用回退 SQL
+        logger.info(f"[NL2SQL] 使用回退SQL: intent={intent}")
         return self._fallback_sql(query, intent)
+
+    @staticmethod
+    def _extract_sql_from_response(response: str) -> Optional[str]:
+        """
+        从 LLM 回复中提取 SQL 语句
+        
+        处理可能存在的 markdown 代码块包裹（```sql ... ``` 或 ``` ... ```），
+        以及纯文本回复中包含的 SQL。
+        
+        Args:
+            response: LLM 的完整回复文本
+            
+        Returns:
+            提取的 SQL 语句，未找到时返回 None
+        """
+        if not response:
+            return None
+        
+        # 尝试匹配 ```sql ... ``` 代码块
+        sql_block_pattern = r'```(?:sql)?\s*\n?(.*?)```'
+        matches = re.findall(sql_block_pattern, response, re.DOTALL | re.IGNORECASE)
+        if matches:
+            sql = matches[-1].strip()  # 取最后一个代码块
+            if sql:
+                return sql
+        
+        # 尝试匹配 ``` ... ``` 通用代码块
+        matches = re.findall(r'```\s*\n?(.*?)```', response, re.DOTALL)
+        if matches:
+            sql = matches[-1].strip()
+            if sql.upper().startswith("SELECT") or sql.upper().startswith("WITH"):
+                return sql
+        
+        # 逐行扫描寻找 SELECT/WITH 开头的行
+        lines = response.strip().split("\n")
+        sql_lines = []
+        in_sql = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.upper().startswith("SELECT") or stripped.upper().startswith("WITH"):
+                in_sql = True
+            if in_sql:
+                sql_lines.append(stripped)
+                if stripped.upper().startswith("LIMIT") or stripped.rstrip().endswith(";"):
+                    break
+        
+        if sql_lines:
+            return "\n".join(sql_lines)
+        
+        return None
 
     def _fallback_sql(self, query: str, intent: str) -> str:
         """无LLM时的回退SQL生成"""
@@ -351,11 +475,53 @@ ORDER BY count DESC
                 return False
         return True
 
+    # 允许的安全SQL操作
+    _ALLOWED_SQL_PREFIXES = ("SELECT", "SHOW", "DESCRIBE", "EXPLAIN", "DESC", "PRAGMA")
+    # 禁止的SQL关键字（防止数据修改）
+    _FORBIDDEN_KEYWORDS = (
+        "DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE",
+        "TRUNCATE", "GRANT", "REVOKE", "REPLACE",
+    )
+
     def _execute(self, sql: str) -> Tuple[List[Dict], List[str]]:
-        """执行SQL并返回结果"""
-        # 实际环境: db.execute(text(sql))
-        logger.info(f"[NL2SQL] 执行: {sql[:100]}...")
-        return [], []
+        """Execute SQL and return (rows_as_dicts, column_names)
+
+        Safety: only allows read-only SQL (SELECT/SHOW/DESCRIBE/EXPLAIN/PRAGMA).
+        Blocks DDL/DML statements to prevent data modification.
+        """
+        from sqlalchemy import text
+        from app.core.database import SessionLocal
+
+        stripped = sql.strip()
+        if not stripped:
+            return [], []
+
+        # 安全检查: 必须以只读关键字开头
+        upper_sql = stripped.upper()
+        if not any(upper_sql.startswith(p) for p in self._ALLOWED_SQL_PREFIXES):
+            raise ValueError(f"仅允许只读查询 (SELECT/SHOW/DESCRIBE/EXPLAIN)，收到: {stripped[:50]}")
+
+        # 安全检查: 不能包含写入关键字
+        for kw in self._FORBIDDEN_KEYWORDS:
+            if re.search(rf'\b{kw}\b', upper_sql):
+                raise ValueError(f"禁止的SQL操作: {kw}，仅允许只读查询")
+
+        logger.info(f"[NL2SQL] 执行: {sql[:200]}")
+        db = SessionLocal()
+        try:
+            result = db.execute(text(sql))
+            if result.returns_rows:
+                rows = result.fetchall()
+                columns = list(result.keys())
+                data = [dict(zip(columns, row)) for row in rows]
+                logger.info(f"[NL2SQL] 查询返回 {len(data)} 行, {len(columns)} 列")
+                return data, columns
+            return [], []
+        except Exception as e:
+            logger.error(f"[NL2SQL] SQL执行失败: {e}")
+            raise
+        finally:
+            db.close()
 
     def _suggest_chart(self, query: str, results: List[Dict]) -> str:
         """根据查询内容和结果推荐图表类型"""
@@ -370,12 +536,84 @@ ORDER BY count DESC
         return "table"
 
     def _extract_params(self, query: str, param_defs: List[Dict]) -> Dict:
-        """从自然语言中提取参数值"""
+        """
+        从自然语言中提取参数值
+        
+        优先使用 LLM 从自然语言中提取参数值，提取失败时使用默认值。
+        
+        Args:
+            query: 用户自然语言查询
+            param_defs: 参数定义列表
+            
+        Returns:
+            参数名到参数值的映射字典
+        """
         params = {}
+        
+        # 先填默认值
         for p in param_defs:
             if p.get("default") is not None:
                 params[p["name"]] = p["default"]
-            # TODO: 实际用NER提取日期/数字/实体
+        
+        # 如果没有需要提取的参数，直接返回
+        if not param_defs:
+            return params
+        
+        # 尝试用 LLM 提取参数
+        try:
+            param_descriptions = "\n".join(
+                f"- {p['name']} ({p.get('type', 'str')}): {p.get('label', p['name'])}"
+                for p in param_defs
+            )
+            
+            extract_prompt = (
+                f"从以下自然语言查询中提取参数值：\n"
+                f"查询: {query}\n\n"
+                f"需要提取的参数：\n{param_descriptions}\n\n"
+                f"以 JSON 格式返回，例如 {{\"start_date\": \"2024-01-01\", \"limit\": 10}}。\n"
+                f"如果某个参数在查询中未提及，使用默认值 {{params}}。\n"
+                f"只返回 JSON，不要加任何解释。"
+            ).replace("{params}", str(params))
+            
+            if not self._llm_client.is_fallback_mode:
+                response = self._llm_client.chat(
+                    messages=extract_prompt,
+                    temperature=0.1,
+                    max_tokens=500,
+                )
+                
+                # 尝试解析 JSON 响应
+                import json
+                content = response.content.strip()
+                # 处理可能的 markdown 代码块
+                if "```" in content:
+                    json_match = re.search(r'```(?:json)?\s*\n?(.*?)```', content, re.DOTALL)
+                    if json_match:
+                        content = json_match.group(1).strip()
+                
+                extracted = json.loads(content)
+                if isinstance(extracted, dict):
+                    # 类型转换
+                    for p in param_defs:
+                        name = p["name"]
+                        if name in extracted:
+                            ptype = p.get("type", "str")
+                            try:
+                                if ptype == "int":
+                                    params[name] = int(extracted[name])
+                                elif ptype == "float" or ptype == "number":
+                                    params[name] = float(extracted[name])
+                                elif ptype == "date":
+                                    # 保持字符串格式
+                                    params[name] = str(extracted[name])
+                                else:
+                                    params[name] = str(extracted[name])
+                            except (ValueError, TypeError):
+                                # 类型转换失败，保留默认值
+                                pass
+        except Exception as e:
+            logger.warning(f"[NL2SQL] LLM参数提取失败，使用默认值: {e}")
+        
         return params
 
     # -- 查询模板管理 --

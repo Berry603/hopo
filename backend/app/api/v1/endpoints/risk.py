@@ -4,7 +4,6 @@ Risk Early Warning Center API Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from loguru import logger
 from typing import List, Optional
@@ -13,7 +12,7 @@ import json
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.auth_utils import decode_token
+from app.api.v1.deps import get_current_user, require_role
 from app.models.risk import (
     RiskRule,
     RiskAlert,
@@ -22,14 +21,12 @@ from app.models.risk import (
     AlertStatus,
     RuleType,
 )
-from app.models.user import User, UserRole
 from app.schemas import (
     ResponseModel,
     PaginatedResponse,
 )
 
 router = APIRouter()
-security = HTTPBearer()
 
 
 # ==================== 风险规则管理 ====================
@@ -41,34 +38,23 @@ async def get_risk_rules(
     risk_type: Optional[str] = Query(None, description="风险类型筛选"),
     severity: Optional[str] = Query(None, description="严重程度筛选"),
     is_active: Optional[bool] = Query(True, description="是否激活"),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     获取风险规则列表
-    
+
     Args:
         page: 页码
         page_size: 每页数量
         risk_type: 风险类型筛选
         severity: 严重程度筛选
         is_active: 是否激活
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         风险规则列表
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user or not current_user.is_auditor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 构建查询
     query = db.query(RiskRule)
@@ -118,31 +104,20 @@ async def get_risk_rules(
 @router.post("/rules", status_code=status.HTTP_201_CREATED)
 async def create_risk_rule(
     rule_data: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
+    _ = Depends(require_role("super_admin", "audit_director", "audit_manager")),
     db: Session = Depends(get_db),
 ):
     """
     创建风险规则
-    
+
     Args:
         rule_data: 规则数据
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         创建结果
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    # 检查权限
-    if not current_user or current_user.role not in [UserRole.SUPER_ADMIN, UserRole.AUDIT_DIRECTOR, UserRole.AUDIT_MANAGER]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 检查规则编号是否已存在
     if db.query(RiskRule).filter(RiskRule.rule_id == rule_data.get("rule_id")).first():
@@ -196,12 +171,12 @@ async def get_risk_alerts(
     department: Optional[str] = Query(None, description="部门筛选"),
     start_date: Optional[str] = Query(None, description="开始日期"),
     end_date: Optional[str] = Query(None, description="结束日期"),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     获取风险预警事件列表
-    
+
     Args:
         page: 页码
         page_size: 每页数量
@@ -211,22 +186,11 @@ async def get_risk_alerts(
         department: 部门筛选
         start_date: 开始日期
         end_date: 结束日期
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         风险预警事件列表
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user or not current_user.is_auditor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 构建查询
     query = db.query(RiskAlert)
@@ -264,11 +228,11 @@ async def get_risk_alerts(
             "dept_code": alert.dept_code,
             "dept_name": alert.dept_name,
             "business_area": alert.business_area,
-            "detail_data": json.loads(alert.detail_data) if alert.detail_data else None,
+            "detail_data": alert.detail_data if isinstance(alert.detail_data, dict) else (json.loads(alert.detail_data) if isinstance(alert.detail_data, str) else None),
             "status": alert.status,
             "confirmed_by_name": alert.confirmed_by.full_name if alert.confirmed_by else None,
             "confirmed_at": alert.confirmed_at.isoformat() if alert.confirmed_at else None,
-            "labels": json.loads(alert.labels) if alert.labels else [],
+            "labels": alert.labels if isinstance(alert.labels, list) else (json.loads(alert.labels) if isinstance(alert.labels, str) else []),
             "alert_time": alert.alert_time.isoformat(),
             "created_at": alert.created_at.isoformat(),
         })
@@ -287,31 +251,20 @@ async def get_risk_alerts(
 async def confirm_risk_alert(
     alert_id: str,
     confirm_data: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     确认风险预警事件
-    
+
     Args:
         alert_id: 预警事件ID
         confirm_data: 确认数据
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         确认结果
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user or not current_user.is_auditor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 获取预警事件
     alert = db.query(RiskAlert).filter(RiskAlert.id == alert_id).first()
@@ -343,17 +296,14 @@ async def confirm_risk_alert(
 @router.post("/scan")
 async def trigger_risk_scan(
     background_tasks: BackgroundTasks,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     触发风险扫描（调用规则引擎）
     """
     from app.services.risk_engine import RiskEngineService
-    
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    
+
     try:
         engine = RiskEngineService()
         results = engine.run_all_rules()
@@ -371,7 +321,7 @@ async def trigger_risk_scan(
 @router.post("/scan/{rule_id}")
 async def trigger_single_rule(
     rule_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """执行单条规则扫描"""

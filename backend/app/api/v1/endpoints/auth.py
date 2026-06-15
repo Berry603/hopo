@@ -8,10 +8,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from loguru import logger
 from typing import Dict, Any
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.auth_utils import create_access_token, decode_token
+from app.api.v1.deps import get_current_user as get_current_active_user
 from app.models.user import User, UserRole
 from app.schemas import (
     UserCreate,
@@ -22,7 +24,6 @@ from app.schemas import (
 )
 
 router = APIRouter()
-security = HTTPBearer()
 
 # ==================== 用户注册 ====================
 
@@ -88,7 +89,7 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
 
 # ==================== 用户登录 ====================
 
-@router.post("/login", response_model=ResponseModel)
+@router.post("/login")
 async def login(user_login: UserLogin, db: Session = Depends(get_db)):
     """
     用户登录
@@ -127,8 +128,8 @@ async def login(user_login: UserLogin, db: Session = Depends(get_db)):
         )
     
     # 更新最后登录时间
-    from datetime import datetime
-    user.last_login = datetime.utcnow()
+    from datetime import datetime, timezone
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
     
     # 创建Token
@@ -150,7 +151,14 @@ async def login(user_login: UserLogin, db: Session = Depends(get_db)):
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # 转换为秒
-            "user": UserResponse.from_orm(user).dict(),
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "full_name": user.full_name,
+                "department": user.department,
+                "role": user.role.value if hasattr(user.role, 'value') else user.role,
+            },
         }
     }
 
@@ -159,44 +167,34 @@ async def login(user_login: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/refresh", response_model=ResponseModel)
 async def refresh_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: User = Depends(get_current_active_user),
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
     db: Session = Depends(get_db),
 ):
     """
     刷新访问Token
-    
+
     Args:
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         新的Token
     """
-    # 解码Token
+    # 解码Token检查类型
     payload = decode_token(credentials.credentials)
-    
+
     # 检查是否为刷新Token
     if payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="无效的刷新Token",
         )
-    
-    # 获取用户
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == user_id).first()
-    
-    if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户不存在或未激活",
-        )
-    
+
     # 创建新的访问Token
     access_token = create_access_token(
-        data={"sub": user.id, "username": user.username, "role": user.role}
+        data={"sub": current_user.id, "username": current_user.username, "role": current_user.role}
     )
-    
+
     return {
         "code": 200,
         "message": "Token刷新成功",
@@ -211,35 +209,26 @@ async def refresh_token(
 # ==================== 获取当前用户信息 ====================
 
 @router.get("/me", response_model=ResponseModel)
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+async def read_current_user(
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     获取当前登录用户信息
-    
-    Args:
-        credentials: HTTP认证凭证
-        db: 数据库会话
-    
+
     Returns:
         用户信息
     """
-    # 解码Token
-    payload = decode_token(credentials.credentials)
-    user_id = payload.get("sub")
-    
-    # 获取用户
-    user = db.query(User).filter(User.id == user_id).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在",
-        )
-    
     return {
         "code": 200,
         "message": "获取成功",
-        "data": UserResponse.from_orm(user).dict(),
+        "data": {
+            "id": current_user.id, "username": current_user.username,
+            "email": current_user.email, "full_name": current_user.full_name,
+            "department": current_user.department, "phone": current_user.phone,
+            "employee_id": current_user.employee_id,
+            "role": current_user.role.value if hasattr(current_user.role, 'value') else current_user.role,
+            "is_active": current_user.is_active,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+            "last_login": current_user.last_login.isoformat() if current_user.last_login else None,
+        },
     }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { App as AntApp } from 'antd';
+import { App as AntApp, Spin } from 'antd';
 import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/login/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
@@ -10,12 +10,27 @@ import RectificationPage from './pages/rectification/RectificationPage';
 import KnowledgePage from './pages/knowledge/KnowledgePage';
 import DataQualityPage from './pages/data-quality/DataQualityPage';
 import QueryPage from './pages/query/QueryPage';
+import ProcedurePage from './pages/audit-procedure/ProcedurePage';
 import ProfilePage from './pages/profile/ProfilePage';
 import SettingsPage from './pages/settings/SettingsPage';
+import { useAuthStore } from './store/authStore';
 
 function App() {
-  // TODO: 检查用户是否已登录
-  const isLoggedIn = true; // 临时设置为true
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const initAuth = useAuthStore((s) => s.initAuth);
+  const [initializing, setInitializing] = React.useState(true);
+
+  React.useEffect(() => {
+    initAuth().finally(() => setInitializing(false));
+  }, [initAuth]);
+
+  if (initializing) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Spin size="large" tip="加载中..." />
+      </div>
+    );
+  }
 
   return (
     <AntApp>
@@ -24,13 +39,36 @@ function App() {
         <Route path="/" element={isLoggedIn ? <MainLayout /> : <Navigate to="/login" />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="risk" element={<RiskAlertPage />} />
-          <Route path="audit" element={<AuditProjectPage />} />
-          <Route path="rectification" element={<RectificationPage />} />
-          <Route path="knowledge" element={<KnowledgePage />} />
-          <Route path="data-quality" element={<DataQualityPage />} />
-          <Route path="query" element={<QueryPage />} />
-          <Route path="templates" element={<Navigate to="/knowledge?tab=templates" replace />} />
+
+          {/* 风险预警 */}
+          <Route path="risk" element={<Navigate to="/risk/alerts" replace />} />
+          <Route path="risk/:tab" element={<RiskAlertPage />} />
+
+          {/* 审计作业 */}
+          <Route path="audit" element={<Navigate to="/audit/projects" replace />} />
+          <Route path="audit/procedure" element={<ProcedurePage />} />
+          <Route path="audit/:tab" element={<AuditProjectPage />} />
+
+          {/* 整改跟踪 */}
+          <Route path="rectification" element={<Navigate to="/rectification/orders" replace />} />
+          <Route path="rectification/:tab" element={<RectificationPage />} />
+
+          {/* 知识管理 */}
+          <Route path="knowledge" element={<Navigate to="/knowledge/search" replace />} />
+          <Route path="knowledge/:tab" element={<KnowledgePage />} />
+
+          {/* 数据治理 */}
+          <Route path="data-quality" element={<Navigate to="/data-quality/dashboard" replace />} />
+          <Route path="data-quality/:tab" element={<DataQualityPage />} />
+
+          {/* 智能查询 */}
+          <Route path="query" element={<Navigate to="/query/nl2sql" replace />} />
+          <Route path="query/:tab" element={<QueryPage />} />
+
+          {/* 审计程序 — 兼容旧路径重定向 */}
+          <Route path="audit-procedure" element={<Navigate to="/audit/procedure" replace />} />
+
+          <Route path="templates" element={<Navigate to="/knowledge/templates" replace />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

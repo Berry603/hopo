@@ -8,6 +8,7 @@ from sqlalchemy.sql import func
 import enum
 
 from app.core.database import Base
+from app.models.base import SoftDeleteMixin
 
 
 class TemplateCategory(str, enum.Enum):
@@ -34,7 +35,7 @@ CATEGORY_LABELS = {
 }
 
 
-class WorksheetTemplate(Base):
+class WorksheetTemplate(Base, SoftDeleteMixin):
     """底稿模板模型"""
     __tablename__ = "worksheet_templates"
 

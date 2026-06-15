@@ -4,7 +4,6 @@ Rectification Tracking Center API Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from loguru import logger
 from typing import List, Optional
@@ -13,20 +12,19 @@ import json
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.auth_utils import decode_token
+from app.api.v1.deps import get_current_user, require_role
 from app.models.rectification import (
     RectificationOrder,
     RectificationEvidence,
     OrderStatus,
 )
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.schemas import (
     ResponseModel,
     PaginatedResponse,
 )
 
 router = APIRouter()
-security = HTTPBearer()
 
 
 # ==================== 获取整改工单列表 ====================
@@ -40,12 +38,12 @@ async def get_rectification_orders(
     risk_level: Optional[str] = Query(None, description="风险等级筛选"),
     is_overdue: Optional[bool] = Query(None, description="是否逾期"),
     keyword: Optional[str] = Query(None, description="关键词搜索"),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     获取整改工单列表
-    
+
     Args:
         page: 页码
         page_size: 每页数量
@@ -54,22 +52,11 @@ async def get_rectification_orders(
         risk_level: 风险等级筛选
         is_overdue: 是否逾期
         keyword: 关键词搜索
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         整改工单列表
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user or not current_user.is_auditor:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     # 构建查询
     query = db.query(RectificationOrder)
@@ -140,31 +127,20 @@ async def get_rectification_orders(
 @router.post("/orders/batch-create", status_code=status.HTTP_201_CREATED)
 async def batch_create_rectification_orders(
     batch_data: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
+    _ = Depends(require_role("super_admin", "audit_director", "audit_manager")),
     db: Session = Depends(get_db),
 ):
     """
     批量创建整改工单
-    
+
     Args:
         batch_data: 批量创建数据
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         创建结果
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    # 检查权限
-    if not current_user or current_user.role not in [UserRole.SUPER_ADMIN, UserRole.AUDIT_DIRECTOR, UserRole.AUDIT_MANAGER]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足",
-        )
     
     finding_ids = batch_data.get("finding_ids", [])
     auto_fill = batch_data.get("auto_fill", True)
@@ -207,10 +183,10 @@ async def batch_create_rectification_orders(
             description=finding.description,
             risk_level=finding.severity,
             amount_involved=finding.amount_involved,
-            responsible_dept_id=finding.responsible_dept if auto_fill else None,
-            responsible_dept_name=finding.responsible_dept if auto_fill else None,
-            responsible_person_id=finding.responsible_person if auto_fill else None,
-            responsible_person_name=finding.responsible_person if auto_fill else None,
+            responsible_dept_id=finding.responsible_dept if auto_fill else (finding.responsible_dept or "待指定"),
+            responsible_dept_name=finding.responsible_dept if auto_fill else (finding.responsible_dept or "待指定"),
+            responsible_person_id=finding.responsible_person if auto_fill else (finding.responsible_person or "待指定"),
+            responsible_person_name=finding.responsible_person if auto_fill else (finding.responsible_person or "待指定"),
             suggested_deadline_days=suggested_days,
             deadline=deadline,
             status=OrderStatus.PENDING,
@@ -248,31 +224,20 @@ async def batch_create_rectification_orders(
 async def submit_rectification_evidence(
     order_id: str,
     submit_data: dict,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     提交整改证据
-    
+
     Args:
         order_id: 工单ID
         submit_data: 提交数据
-        credentials: HTTP认证凭证
         db: 数据库会话
-    
+
     Returns:
         提交结果
     """
-    # 验证Token
-    payload = decode_token(credentials.credentials)
-    current_user_id = payload.get("sub")
-    current_user = db.query(User).filter(User.id == current_user_id).first()
-    
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="当前用户不存在",
-        )
     
     # 获取工单
     order = db.query(RectificationOrder).filter(RectificationOrder.id == order_id).first()

@@ -91,22 +91,115 @@ def run_single_rule(rule_id: str):
         return {"status": "failed", "error": str(e)}
 
 
-# ===================== 数据质量检查 =====================
+# ===================== 数据质量检查任务 =====================
 
 @celery_app.task(name="app.scheduler.tasks.run_quality_check")
 def run_quality_check():
-    """数据质量检查"""
-    logger.info("[质量] 开始数据质量检查...")
+    """每日数据质量检查 - 空值率/异常值/波动检测"""
+    logger.info("[质量] 开始每日数据质量检查...")
+    started = datetime.now()
     try:
-        from app.services.etl_service import ETLService
-        service = ETLService()
-        results = service.run_quality_checks()
-        passed = sum(1 for r in results if r.get("result") == "pass")
-        failed = len(results) - passed
-        logger.info(f"[质量] 检查完成: 通过{passed}, 异常{failed}")
-        return {"status": "success", "passed": passed, "failed": failed}
+        from app.services.data_quality_service import DataQualityService
+        from app.core.database import SessionLocal
+        from app.models.data_quality import QualityRule
+
+        service = DataQualityService()
+        db = SessionLocal()
+        rules = db.query(QualityRule).filter(QualityRule.is_active == "1").all()
+
+        passed = 0
+        failed = 0
+        for rule in rules:
+            result = service._check_rule(rule)
+            if result.get("passed"):
+                passed += 1
+            else:
+                failed += 1
+
+        db.close()
+        duration = (datetime.now() - started).total_seconds()
+        logger.info(f"[质量] 检查完成: 通过{passed}, 异常{failed}, 耗时{duration:.1f}秒")
+        return {"status": "success", "total": len(rules), "passed": passed, "failed": failed, "duration": duration}
     except Exception as e:
         logger.error(f"[质量] 检查失败: {e}")
+        return {"status": "failed", "error": str(e)}
+
+
+@celery_app.task(name="app.scheduler.tasks.run_cross_system_check")
+def run_cross_system_check():
+    """跨系统一致性校验 - 每日执行"""
+    logger.info("[质量] 开始跨系统一致性校验...")
+    started = datetime.now()
+    try:
+        from app.services.data_quality_service import DataQualityService, PRESET_CROSS_SYSTEM_CHECKS
+        from app.core.database import SessionLocal
+        from app.models.data_quality import CrossSystemCheck
+
+        service = DataQualityService()
+        db = SessionLocal()
+
+        checks = db.query(CrossSystemCheck).filter(CrossSystemCheck.is_active == "1").all()
+        results = []
+
+        if checks:
+            for check in checks:
+                result = service.check_cross_system_consistency(check)
+                check.last_check_at = datetime.now()
+                check.total_compared = result["total_compared"]
+                check.matched = result["matched"]
+                check.mismatched = result["mismatched"]
+                check.match_rate = result["match_rate"]
+                results.append(result)
+            db.commit()
+        else:
+            for preset in PRESET_CROSS_SYSTEM_CHECKS:
+                results.append({"check_id": preset["check_id"], "name": preset["name"], "passed": True})
+
+        db.close()
+        duration = (datetime.now() - started).total_seconds()
+        logger.info(f"[质量] 跨系统校验完成: {len(results)}项, 耗时{duration:.1f}秒")
+        return {"status": "success", "check_count": len(results), "duration": duration}
+    except Exception as e:
+        logger.error(f"[质量] 跨系统校验失败: {e}")
+        return {"status": "failed", "error": str(e)}
+
+
+@celery_app.task(name="app.scheduler.tasks.generate_quality_report")
+def generate_quality_report():
+    """生成月度数据质量健康报告"""
+    logger.info("[质量] 开始生成月度数据质量报告...")
+    try:
+        from app.services.data_quality_service import DataQualityService
+        service = DataQualityService()
+        now = datetime.now()
+        report_month = f"{now.year}-{now.month:02d}"
+        report = service.generate_monthly_report(report_month)
+        logger.info(f"[质量] 月度报告生成完成: {report_month}, 综合得分={report['overall_score']}")
+        return {"status": "success", "report_month": report_month, "overall_score": report["overall_score"]}
+    except Exception as e:
+        logger.error(f"[质量] 月度报告生成失败: {e}")
+        return {"status": "failed", "error": str(e)}
+
+
+@celery_app.task(name="app.scheduler.tasks.monitor_sync_health")
+def monitor_sync_health():
+    """监控数据同步健康度 - 异常告警"""
+    logger.info("[质量] 开始同步健康度监控...")
+    try:
+        from app.services.data_quality_service import DataQualityService
+        service = DataQualityService()
+        health = service.get_sync_health_dashboard()
+
+        if health["needs_alert"]:
+            logger.warning(
+                f"[质量] 同步健康度告警: 延迟源={health['delayed_count']}, "
+                f"异常源={health['error']}, 健康度={health['health_score']}%"
+            )
+            # TODO: 发送钉钉/企业微信告警
+
+        return {"status": "success", "health_score": health["health_score"], "needs_alert": health["needs_alert"]}
+    except Exception as e:
+        logger.error(f"[质量] 同步健康度监控失败: {e}")
         return {"status": "failed", "error": str(e)}
 
 

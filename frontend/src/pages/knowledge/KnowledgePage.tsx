@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  Layout, Tabs, Table, Button, Space, Tag, Input, Select, Card,
+  Layout, Table, Button, Space, Tag, Input, Select, Card,
   Modal, Form, Drawer, Descriptions, Rate, Popconfirm, message,
   Row, Col, List, Typography, Empty, Divider, Tooltip, DatePicker,
   Upload, Statistic, Dropdown,
@@ -18,7 +18,8 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useSearchParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { getTemplates, getTemplateCategories, uploadTemplate, deleteTemplate, getTemplateDownloadUrl } from '@/services/knowledge';
 import './KnowledgePage.less';
 
 const { Content } = Layout;
@@ -32,7 +33,7 @@ interface KnowledgeItem {
   tags: string[]; content: string; rating: number; views: number; status: 'published' | 'draft';
   fileType?: string; relatedTo?: string; attachments?: UploadFile[];
 }
-interface UploadFile { uid: string; name: string; status: 'done' | 'uploading' | 'error'; url?: string; size?: number; type?: string; }
+interface KnowledgeUploadFile { uid: string; name: string; status: 'done' | 'uploading' | 'error'; url?: string; size?: number; type?: string; }
 const mockKnowledge: KnowledgeItem[] = [
   { id: 'KB-001', title: '企业内部控制基本规范（2025版）', type: 'regulation', category: '内控规范',
     author: '法规库', createdAt: '2025-01-01', updatedAt: '2025-06-01', tags: ['内控', '法规', '规范'],
@@ -76,8 +77,6 @@ interface TemplateItem {
   download_count: number; created_at: string; updated_at: string; created_by: string;
 }
 interface CategoryItem { value: string; label: string; }
-interface TemplateListResponse { total: number; items: TemplateItem[]; }
-
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -99,9 +98,8 @@ const categoryColorMap: Record<string, string> = {
 };
 
 const KnowledgePage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { tab = 'search' } = useParams<{ tab: string }>();
   const [items, setItems] = useState<KnowledgeItem[]>(mockKnowledge);
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'search');
   const [searchText, setSearchText] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
@@ -124,12 +122,6 @@ const KnowledgePage: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
   const [templateFileList, setTemplateFileList] = useState<UploadFile[]>([]);
   const [templateUploadForm] = Form.useForm();
-
-  // 同步 tab 到 URL
-  const handleTabChange = useCallback((key: string) => {
-    setActiveTab(key);
-    setSearchParams(key === 'search' ? {} : { tab: key }, { replace: true });
-  }, [setSearchParams]);
 
   const filteredItems = useMemo(() => {
     return items.filter(i => {
@@ -194,21 +186,19 @@ const KnowledgePage: React.FC = () => {
   const fetchTemplates = useCallback(async () => {
     setTemplateLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (templateFilterCategory) params.append('category', templateFilterCategory);
-      if (templateSearchKeyword) params.append('keyword', templateSearchKeyword);
-      const res = await fetch(`/api/v1/templates?${params.toString()}`);
-      const data: TemplateListResponse = await res.json();
-      setTemplates(data.items || []);
+      const data = await getTemplates({
+        category: templateFilterCategory || undefined,
+        keyword: templateSearchKeyword || undefined,
+      });
+      setTemplates((data?.data as any)?.items || []);
     } catch { messageApi.error('获取模板列表失败'); }
     finally { setTemplateLoading(false); }
   }, [templateFilterCategory, templateSearchKeyword, messageApi]);
 
   const fetchTemplateCategories = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/templates/categories');
-      const data = await res.json();
-      setTemplateCategories(data.items || []);
+      const data = await getTemplateCategories();
+      setTemplateCategories((data?.data as any)?.items || []);
     } catch { /* ignore */ }
   }, []);
 
@@ -231,37 +221,43 @@ const KnowledgePage: React.FC = () => {
       if (values.description) formData.append('description', values.description);
       const file = templateFileList[0].originFileObj as RcFile;
       formData.append('file', file);
-      const res = await fetch('/api/v1/templates/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.success) { messageApi.success(data.message || '模板上传成功'); setTemplateUploadModalVisible(false); fetchTemplates(); }
-      else { messageApi.error(data.detail || '上传失败'); }
+      const data = await uploadTemplate(formData);
+      if (data?.code === 200) { messageApi.success(data.message || '模板上传成功'); setTemplateUploadModalVisible(false); fetchTemplates(); }
+      else { messageApi.error(data?.message || '上传失败'); }
     } catch (err: any) {
       if (err.errorFields) return;
       messageApi.error('上传失败');
     } finally { setTemplateUploading(false); }
   };
 
-  const handleTemplateDownload = (tmpl: TemplateItem, format?: string) => {
-    const fmt = format || tmpl.file_type;
-    const url = `/api/v1/templates/${tmpl.id}/download${fmt !== tmpl.file_type ? `?format=${fmt}` : ''}`;
-    const ext = fmt === 'csv' ? '.csv' : `.${tmpl.file_type}`;
-    const downloadName = tmpl.file_name.replace(/\.[^.]+$/, ext);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = downloadName;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    messageApi.success(`模板「${tmpl.name}」下载已开始（.${fmt}）`);
-    setTimeout(() => fetchTemplates(), 500);
+  const handleTemplateDownload = async (tmpl: TemplateItem, format?: string) => {
+    try {
+      const fmt = format || tmpl.file_type;
+      const url = getTemplateDownloadUrl(tmpl.id, fmt !== tmpl.file_type ? fmt : undefined);
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
+      });
+      if (!response.ok) throw new Error('下载失败');
+      const blob = await response.blob();
+      const ext = fmt === 'csv' ? '.csv' : `.${tmpl.file_type}`;
+      const downloadName = tmpl.file_name.replace(/\.[^.]+$/, ext);
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = downloadName;
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+      messageApi.success(`模板「${tmpl.name}」下载已开始（.${fmt}）`);
+      setTimeout(() => fetchTemplates(), 500);
+    } catch { messageApi.error('下载失败'); }
   };
 
   const handleTemplateDelete = async (tmpl: TemplateItem) => {
     if (tmpl.is_preset) { messageApi.warning('系统预设模板不可删除'); return; }
     try {
-      const res = await fetch(`/api/v1/templates/${tmpl.id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) { messageApi.success(data.message || '删除成功'); fetchTemplates(); }
-      else { messageApi.error(data.detail || '删除失败'); }
+      const data = await deleteTemplate(tmpl.id);
+      if (data?.code === 200) { messageApi.success(data.message || '删除成功'); fetchTemplates(); }
+      else { messageApi.error(data?.message || '删除失败'); }
     } catch { messageApi.error('删除失败'); }
   };
 
@@ -368,140 +364,118 @@ const KnowledgePage: React.FC = () => {
   return (
     <Layout>
       {contextHolder}
-      <div className="page-header">
-        <h2 className="page-title">📚 知识管理中心</h2>
-        <p className="page-subtitle">审计知识沉淀、检索和复用</p>
-      </div>
       <Content className="page-content">
-        <Tabs activeKey={activeTab} onChange={handleTabChange} items={[
-          {
-            key: 'search',
-            label: <span><SearchOutlined /> 知识检索</span>,
-            children: (
-              <div className="content-card">
-                {/* 搜索栏 */}
-                <Row gutter={16} style={{ marginBottom: 16 }}>
-                  <Col flex="auto">
-                    <Input.Search placeholder="搜索标题、标签、分类..." allowClear size="large"
-                      value={searchText} onChange={e => setSearchText(e.target.value)}
-                      prefix={<SearchOutlined />}
-                      enterButton="搜索" />
-                  </Col>
-                  <Col>
-                    <Select placeholder="知识类型" allowClear mode="multiple" value={typeFilter}
-                      onChange={setTypeFilter} style={{ width: 200 }}
-                      options={Object.entries(typeMap).map(([k, v]) => ({ value: k, label: v.text }))} />
-                  </Col>
-                  <Col>
-                    <Button type="primary" icon={<PlusOutlined />} size="large" onClick={handleAdd}>新增知识</Button>
-                  </Col>
-                </Row>
-                {filteredItems.length > 0 ? renderKnowledgeList(filteredItems) : (
-                  <Empty description="未找到匹配的知识条目" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                )}
-              </div>
-            ),
-          },
-          {
-            key: 'regulations',
-            label: <span><BookOutlined /> 法规库</span>,
-            children: (
-              <div className="content-card">
-                <Space style={{ marginBottom: 16 }}>
-                  <Input.Search placeholder="搜索法规" allowClear style={{ width: 250 }} />
-                  <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增法规</Button>
+        {tab === 'search' && (
+          <div className="content-card">
+            {/* 搜索栏 */}
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col flex="auto">
+                <Input.Search placeholder="搜索标题、标签、分类..." allowClear size="large"
+                  value={searchText} onChange={e => setSearchText(e.target.value)}
+                  prefix={<SearchOutlined />}
+                  enterButton="搜索" />
+              </Col>
+              <Col>
+                <Select placeholder="知识类型" allowClear mode="multiple" value={typeFilter}
+                  onChange={setTypeFilter} style={{ width: 200 }}
+                  options={Object.entries(typeMap).map(([k, v]) => ({ value: k, label: v.text }))} />
+              </Col>
+              <Col>
+                <Button type="primary" icon={<PlusOutlined />} size="large" onClick={handleAdd}>新增知识</Button>
+              </Col>
+            </Row>
+            {filteredItems.length > 0 ? renderKnowledgeList(filteredItems) : (
+              <Empty description="未找到匹配的知识条目" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
+          </div>
+        )}
+        {tab === 'regulations' && (
+          <div className="content-card">
+            <Space style={{ marginBottom: 16 }}>
+              <Input.Search placeholder="搜索法规" allowClear style={{ width: 250 }} />
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增法规</Button>
+            </Space>
+            <Table columns={[...baseColumns,
+              { title: '文件类型', dataIndex: 'fileType', width: 80, render: (v: string) => v ? <Tag>{v}</Tag> : null },
+              { title: '操作', width: 180, render: (_, r) => (
+                <Space size="small">
+                  <Button size="small" type="link" onClick={() => handleView(r)}><EyeOutlined /> 查看</Button>
+                  <Button size="small" type="link" onClick={() => handleEdit(r)}><EditOutlined /> 编辑</Button>
+                  <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
+                    <Button size="small" type="link" danger><DeleteOutlined /></Button>
+                  </Popconfirm>
                 </Space>
-                <Table columns={[...baseColumns,
-                  { title: '文件类型', dataIndex: 'fileType', width: 80, render: (v: string) => v ? <Tag>{v}</Tag> : null },
-                  { title: '操作', width: 180, render: (_, r) => (
-                    <Space size="small">
-                      <Button size="small" type="link" onClick={() => handleView(r)}><EyeOutlined /> 查看</Button>
-                      <Button size="small" type="link" onClick={() => handleEdit(r)}><EditOutlined /> 编辑</Button>
-                      <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
-                        <Button size="small" type="link" danger><DeleteOutlined /></Button>
-                      </Popconfirm>
-                    </Space>
-                  )},
-                ]} dataSource={regulations} rowKey="id" pagination={false} size="middle" />
-              </div>
-            ),
-          },
-          {
-            key: 'cases',
-            label: <span><FileTextOutlined /> 案例库</span>,
-            children: (
-              <div className="content-card">
-                <Space style={{ marginBottom: 16 }}>
-                  <Input.Search placeholder="搜索案例" allowClear style={{ width: 250 }} />
-                  <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增案例</Button>
-                  <Button icon={<SwapOutlined />}>从审计发现转化</Button>
+              )},
+            ]} dataSource={regulations} rowKey="id" pagination={false} size="middle" />
+          </div>
+        )}
+        {tab === 'cases' && (
+          <div className="content-card">
+            <Space style={{ marginBottom: 16 }}>
+              <Input.Search placeholder="搜索案例" allowClear style={{ width: 250 }} />
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增案例</Button>
+              <Button icon={<SwapOutlined />} onClick={() => messageApi.info('请选择要转化的审计发现记录')}>从审计发现转化</Button>
+            </Space>
+            <Table columns={[...baseColumns,
+              { title: '关联项目', dataIndex: 'relatedTo', width: 140, render: (v: string) => v ? <Tag color="blue">{v}</Tag> : '-' },
+              { title: '操作', width: 180, render: (_, r) => (
+                <Space size="small">
+                  <Button size="small" type="link" onClick={() => handleView(r)}><EyeOutlined /> 查看</Button>
+                  <Button size="small" type="link" onClick={() => handleEdit(r)}><EditOutlined /> 编辑</Button>
+                  <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
+                    <Button size="small" type="link" danger><DeleteOutlined /></Button>
+                  </Popconfirm>
                 </Space>
-                <Table columns={[...baseColumns,
-                  { title: '关联项目', dataIndex: 'relatedTo', width: 140, render: (v: string) => v ? <Tag color="blue">{v}</Tag> : '-' },
-                  { title: '操作', width: 180, render: (_, r) => (
-                    <Space size="small">
-                      <Button size="small" type="link" onClick={() => handleView(r)}><EyeOutlined /> 查看</Button>
-                      <Button size="small" type="link" onClick={() => handleEdit(r)}><EditOutlined /> 编辑</Button>
-                      <Popconfirm title="确定删除?" onConfirm={() => handleDelete(r.id)}>
-                        <Button size="small" type="link" danger><DeleteOutlined /></Button>
-                      </Popconfirm>
-                    </Space>
-                  )},
-                ]} dataSource={cases} rowKey="id" pagination={false} size="middle" />
-              </div>
-            ),
-          },
-          {
-            key: 'templates',
-            label: <span><FileTextOutlined /> 模板库</span>,
-            children: (
-              <div className="content-card">
-                {/* 统计卡片 */}
-                <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-                  <Col xs={12} sm={6}>
-                    <Card><Statistic title="模板总数" value={templateStats.total} prefix={<FileTextOutlined />} valueStyle={{ color: '#E34D59' }} /></Card>
-                  </Col>
-                  <Col xs={12} sm={6}>
-                    <Card><Statistic title="系统预设" value={templateStats.presets} prefix={<FileWordOutlined />} valueStyle={{ color: '#faad14' }} /></Card>
-                  </Col>
-                  <Col xs={12} sm={6}>
-                    <Card><Statistic title="自建模板" value={templateStats.custom} prefix={<FileExcelOutlined />} valueStyle={{ color: '#1890ff' }} /></Card>
-                  </Col>
-                  <Col xs={12} sm={6}>
-                    <Card><Statistic title="累计下载" value={templateStats.totalDownloads} prefix={<DownloadOutlined />} valueStyle={{ color: '#52c41a' }} /></Card>
-                  </Col>
-                </Row>
+              )},
+            ]} dataSource={cases} rowKey="id" pagination={false} size="middle" />
+          </div>
+        )}
+        {tab === 'templates' && (
+          <div className="content-card">
+            {/* 统计卡片 */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+              <Col xs={12} sm={6}>
+                <Card><Statistic title="模板总数" value={templateStats.total} prefix={<FileTextOutlined />} valueStyle={{ color: '#D7011D' }} /></Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card><Statistic title="系统预设" value={templateStats.presets} prefix={<FileWordOutlined />} valueStyle={{ color: '#faad14' }} /></Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card><Statistic title="自建模板" value={templateStats.custom} prefix={<FileExcelOutlined />} valueStyle={{ color: '#1890ff' }} /></Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card><Statistic title="累计下载" value={templateStats.totalDownloads} prefix={<DownloadOutlined />} valueStyle={{ color: '#52c41a' }} /></Card>
+              </Col>
+            </Row>
 
-                {/* 工具栏 */}
-                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                  <Space>
-                    <Input.Search placeholder="搜索模板名称..." allowClear style={{ width: 280 }}
-                      prefix={<SearchOutlined />}
-                      onSearch={(val) => setTemplateSearchKeyword(val)}
-                      onPressEnter={(e) => setTemplateSearchKeyword((e.target as HTMLInputElement).value)}
-                      onChange={(e) => { if (!e.target.value) setTemplateSearchKeyword(''); }} />
-                    <Select placeholder="选择分类" allowClear style={{ width: 140 }}
-                      value={templateFilterCategory}
-                      onChange={(val) => setTemplateFilterCategory(val || null)}>
-                      {templateCategories.map((c) => <Select.Option key={c.value} value={c.value}>{c.label}</Select.Option>)}
-                    </Select>
-                  </Space>
-                  <Space>
-                    <Button icon={<ReloadOutlined />} onClick={fetchTemplates}>刷新</Button>
-                    <Button type="primary" icon={<UploadOutlined />} onClick={handleTemplateUpload}
-                      style={{ background: '#E34D59', borderColor: '#E34D59' }}>上传模板</Button>
-                  </Space>
-                </div>
+            {/* 工具栏 */}
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <Space>
+                <Input.Search placeholder="搜索模板名称..." allowClear style={{ width: 280 }}
+                  prefix={<SearchOutlined />}
+                  onSearch={(val) => setTemplateSearchKeyword(val)}
+                  onPressEnter={(e) => setTemplateSearchKeyword((e.target as HTMLInputElement).value)}
+                  onChange={(e) => { if (!e.target.value) setTemplateSearchKeyword(''); }} />
+                <Select placeholder="选择分类" allowClear style={{ width: 140 }}
+                  value={templateFilterCategory}
+                  onChange={(val) => setTemplateFilterCategory(val || null)}>
+                  {templateCategories.map((c) => <Select.Option key={c.value} value={c.value}>{c.label}</Select.Option>)}
+                </Select>
+              </Space>
+              <Space>
+                <Button icon={<ReloadOutlined />} onClick={fetchTemplates}>刷新</Button>
+                <Button type="primary" icon={<UploadOutlined />} onClick={handleTemplateUpload}
+                  style={{ background: '#D7011D', borderColor: '#D7011D' }}>上传模板</Button>
+              </Space>
+            </div>
 
-                {/* 表格 */}
-                <Table columns={templateColumns} dataSource={templates} rowKey="id"
-                  loading={templateLoading}
-                  pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 个模板` }}
-                  scroll={{ x: 1300 }} />
-              </div>
-            ),
-          },
-        ]} />
+            {/* 表格 */}
+            <Table columns={templateColumns} dataSource={templates} rowKey="id"
+              loading={templateLoading}
+              pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 个模板` }}
+              scroll={{ x: 1300 }} />
+          </div>
+        )}
 
         {/* 查看详情抽屉 */}
         <Drawer title="知识详情" width={620} open={drawerVisible} onClose={() => setDrawerVisible(false)}>
@@ -633,7 +607,7 @@ const KnowledgePage: React.FC = () => {
             </Form.Item>
             <Form.Item label="选择文件" required>
               <Upload.Dragger {...templateUploadProps} accept=".doc,.docx,.xls,.xlsx,.csv,.pdf,.txt,.png,.jpg,.jpeg">
-                <p className="ant-upload-drag-icon"><UploadOutlined style={{ fontSize: 36, color: '#E34D59' }} /></p>
+                <p className="ant-upload-drag-icon"><UploadOutlined style={{ fontSize: 36, color: '#D7011D' }} /></p>
                 <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
                 <p className="ant-upload-hint">支持 Word、Excel、CSV、PDF、TXT、图片格式，单个文件不超过 50MB</p>
               </Upload.Dragger>

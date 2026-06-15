@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Layout, Tabs, Table, Button, Space, Tag, Input, Select, Card,
+  Layout, Table, Button, Space, Tag, Input, Select, Card,
   Row, Col, Divider, Typography, Empty, message, Collapse, Spin, Avatar,
-  Tooltip, List,
+  Tooltip, List, Upload,
 } from 'antd';
 import {
   SearchOutlined, BulbOutlined, BarChartOutlined, SendOutlined,
   ReloadOutlined, ThunderboltOutlined, CopyOutlined, CodeOutlined,
   TableOutlined, LineChartOutlined, PieChartOutlined, UserOutlined,
   RobotOutlined, ClearOutlined, StarOutlined, HistoryOutlined,
-  DownloadOutlined, WarningOutlined,
+  DownloadOutlined, WarningOutlined, AudioOutlined, PaperClipOutlined,
+  FileExcelOutlined, FileSearchOutlined, QuestionCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import ReactEChartsCore from 'echarts-for-react/lib/core';
@@ -105,13 +106,26 @@ const QueryPage: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [messageApi, contextHolder] = message.useMessage();
   const navigate = useNavigate();
+  const { tab = 'nl2sql' } = useParams<{ tab: string }>();
   const [history, setHistory] = useState<string[]>([]);
 
   // Agent 聊天
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'assistant', content: '你好！我是审计智能助手 🤖  \n我可以帮你：\n- 📊 自然语言查询数据\n- 📈 分析审计趋势和异常\n- 📝 生成审计报告摘要\n\n请告诉我想了解什么？', time: '15:00' },
+    {
+      id: '1', role: 'assistant', content: `👋 你好！我是审计智能助手
+
+我可以帮你：
+
+🔍 **问数** — "上个月各部门费用排名"
+📈 **分析** — "销售费用为何超预算30%"
+📝 **报告** — "生成本月审计执行摘要"
+💬 **多轮追问** — "那采购部呢？对比一下"
+
+💡 试试点击右下角的 🤖 按钮选择示例问题，或直接输入你的问题`,
+      time: '15:00' },
   ]);
   const [chatInput, setChatInput] = useState('');
+  const [agentPanelOpen, setAgentPanelOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
@@ -174,22 +188,33 @@ const QueryPage: React.FC = () => {
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: chatInput, time: new Date().toLocaleTimeString() };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
-    // 模拟回复
+    simulateReply(chatInput, userMsg);
+  };
+
+  // 快捷发送（直接传文本，不依赖 state）
+  const quickSend = (text: string) => {
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: text, time: new Date().toLocaleTimeString() };
+    setChatMessages(prev => [...prev, userMsg]);
+    simulateReply(text, userMsg);
+  };
+
+  // 模拟回复逻辑（抽取为独立函数）
+  const simulateReply = (inputText: string, userMsg: ChatMessage) => {
     setTimeout(() => {
       let reply: string;
       let qr: QueryResult | undefined;
-      if (chatInput.includes('费用') || chatInput.includes('部门') || chatInput.includes('排名')) {
+      if (inputText.includes('费用') || inputText.includes('部门') || inputText.includes('排名')) {
         reply = '好的，我已经查询了各部门本月费用支出情况：';
         qr = mockResults['各部门费用支出排名'];
-      } else if (chatInput.includes('合同') || chatInput.includes('采购')) {
+      } else if (inputText.includes('合同') || inputText.includes('采购')) {
         reply = '已查询大额采购合同，以下是结果：';
         qr = mockResults['大额采购合同'];
-      } else if (chatInput.includes('风险') || chatInput.includes('预警')) {
+      } else if (inputText.includes('风险') || inputText.includes('预警')) {
         reply = '当前系统共有 12 条活跃风险预警：\n- 🔴 高风险 3 条（采购流程、IT权限、账户安全）\n- 🟡 中风险 5 条\n- 🟢 低风险 4 条\n\n建议优先处理高风险项。';
-      } else if (chatInput.includes('报告') || chatInput.includes('总结')) {
+      } else if (inputText.includes('报告') || inputText.includes('摘要')) {
         reply = '📋 **本月审计摘要**\n\n本月完成审计项目 3 个，发现主要问题：\n1. 采购合同审批（高风险）- 已整改中\n2. 费用报销附件不完整（中风险）- 逾期未完成\n3. 固定资产盘点差异（高风险）- 已派发整改\n\n整改完成率 78%，2条逾期工单需关注。';
       } else {
-        reply = `关于"${chatInput.slice(0, 20)}"，我需要更多信息才能给出准确回答。你能补充一下具体想了解的维度吗？（如：时间范围、部门、金额范围等）`;
+        reply = `关于"${inputText.slice(0, 20)}"，我需要更多信息才能给出准确回答。你能补充一下具体想了解的维度吗？（如：时间范围、部门、金额范围等）`;
       }
       const botMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'assistant', content: reply, time: new Date().toLocaleTimeString(), result: qr };
       setChatMessages(prev => [...prev, botMsg]);
@@ -208,7 +233,7 @@ const QueryPage: React.FC = () => {
         xAxis: { type: 'category', data: xData, axisLabel: { fontSize: 11 } },
         yAxis: { type: 'value', axisLabel: { fontSize: 11 }, nameTextStyle: { fontSize: 10 } },
         series: series.map((s: any, i: number) => ({ ...s, type: 'bar', barMaxWidth: 40,
-          itemStyle: { borderRadius: [6, 6, 0, 0], color: i === 0 ? '#E34D59' : '#1890ff' } })),
+          itemStyle: { borderRadius: [6, 6, 0, 0], color: i === 0 ? '#D7011D' : '#1890ff' } })),
       };
     }
     if (vizMode === 'pie') {
@@ -225,7 +250,7 @@ const QueryPage: React.FC = () => {
         grid: { left: 54, right: 20, top: 24, bottom: 24 },
         xAxis: { type: 'category', data: xData, boundaryGap: false, axisLabel: { fontSize: 11 } },
         yAxis: { type: 'value', axisLabel: { fontSize: 11 }, nameTextStyle: { fontSize: 10 } },
-        series: series.map((s: any) => ({ ...s, type: 'line', smooth: true, symbol: 'circle', symbolSize: 6, areaStyle: { opacity: 0.1 } })),
+        series: series.map((s: any) => ({ ...s, type: 'line', smooth: true, symbol: 'circle', symbolSize: 6 })),
       };
     }
     return {};
@@ -240,251 +265,221 @@ const QueryPage: React.FC = () => {
   return (
     <Layout>
       {contextHolder}
-      <div className="page-header">
-        <h2 className="page-title">🔎 智能查询中心</h2>
-        <p className="page-subtitle">NL2SQL 自然语言查询 + 审计机器人 Agent</p>
-      </div>
       <Content className="page-content">
-        <Tabs defaultActiveKey="nl2sql" items={[
-          {
-            key: 'nl2sql',
-            label: <span><SearchOutlined /> NL2SQL 查询</span>,
-            children: (
-              <div>
-                {/* 查询输入区 */}
-                <div className="content-card">
-                  <Text strong style={{ fontSize: 15 }}>输入自然语言查询</Text>
-                  <Row gutter={12} style={{ marginTop: 12 }}>
-                    <Col flex="auto">
-                      <TextArea rows={3} placeholder="例如：查询上季度采购金额超过10万的合同，按金额降序排列"
-                        value={queryText} onChange={e => setQueryText(e.target.value)}
-                        style={{ fontSize: 14 }} disabled={loading} />
-                    </Col>
-                    <Col>
-                      <Button type="primary" icon={<SearchOutlined />} onClick={handleQuery} loading={loading}
-                        size="large" style={{ height: '100%', minHeight: 72 }}>
-                        {loading ? '查询中...' : '查询'}
-                      </Button>
-                    </Col>
-                  </Row>
-                  <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Space size={4}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>ⓘ 支持：部门/费用/合同/供应商/审计发现/整改 等维度的自然语言查询</Text>
-                    </Space>
-                    <Button size="small" icon={<ClearOutlined />} onClick={() => { setQueryText(''); setResult(null); }}>清空</Button>
+        {/* NL2SQL 查询 */}
+        {tab === 'nl2sql' && (
+          <div>
+            {/* 查询输入区 */}
+            <div className="content-card">
+              <Text strong style={{ fontSize: 15 }}>输入自然语言查询</Text>
+              <Row gutter={12} style={{ marginTop: 12 }}>
+                <Col flex="auto">
+                  <TextArea rows={3} placeholder="例如：查询上季度采购金额超过10万的合同，按金额降序排列"
+                    value={queryText} onChange={e => setQueryText(e.target.value)}
+                    style={{ fontSize: 14 }} disabled={loading} />
+                </Col>
+                <Col>
+                  <Button type="primary" icon={<SearchOutlined />} onClick={handleQuery} loading={loading}
+                    size="large" style={{ height: '100%', minHeight: 72 }}>
+                    {loading ? '查询中...' : '查询'}
+                  </Button>
+                </Col>
+              </Row>
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Space size={4}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>ⓘ 支持：部门/费用/合同/供应商/审计发现/整改 等维度的自然语言查询</Text>
+                </Space>
+                <Button size="small" icon={<ClearOutlined />} onClick={() => { setQueryText(''); setResult(null); }}>清空</Button>
+              </div>
+            </div>
+
+            {/* 查询模板 */}
+            <div className="content-card" style={{ marginTop: 16 }}>
+              <Text strong>快速模板</Text>
+              <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
+                {mockTemplates.map(tpl => (
+                  <Col xs={24} sm={12} md={8} key={tpl.id}>
+                    <Card size="small" hoverable className={selectedTemplate === tpl.id ? 'tpl-card-selected' : ''}
+                      onClick={() => handleTemplateQuery(tpl.id)}>
+                      <Card.Meta
+                        title={<Space><Tag color="blue">{tpl.category}</Tag>{tpl.title}</Space>}
+                        description={tpl.description}
+                      />
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+
+            {/* 查询结果 */}
+            <Spin spinning={loading} tip="正在生成SQL并执行查询...">
+              <div style={{ marginTop: 16 }}>
+                {result ? (
+                  <>
+                    {/* SQL展示 */}
+                    <Collapse ghost size="small" items={[{
+                      key: 'sql', label: <span><CodeOutlined /> 生成的SQL</span>,
+                      children: <div style={{ background: '#1F1F1F', color: '#a6e22e', padding: 12, borderRadius: 6, fontFamily: 'monospace', fontSize: 13, overflowX: 'auto' }}>
+                        {result.sql}
+                      </div>,
+                    }]} />
+
+                    {/* 可视化切换 */}
+                    <Card size="small" style={{ marginTop: 12 }}
+                      title={<Space>
+                        <span>查询结果 ({result.rowCount} 条)</span>
+                        <Tag color="blue">NL2SQL</Tag>
+                      </Space>}
+                      extra={
+                        <Space>
+                          <Space.Compact size="small">
+                            <Tooltip title="表格"><Button type={vizMode === 'table' ? 'primary' : 'default'} icon={<TableOutlined />} onClick={() => setVizMode('table')} /></Tooltip>
+                            <Tooltip title="柱状图"><Button type={vizMode === 'bar' ? 'primary' : 'default'} icon={<BarChartOutlined />} onClick={() => setVizMode('bar')} /></Tooltip>
+                            <Tooltip title="饼图"><Button type={vizMode === 'pie' ? 'primary' : 'default'} icon={<PieChartOutlined />} onClick={() => setVizMode('pie')} /></Tooltip>
+                            <Tooltip title="折线图"><Button type={vizMode === 'line' ? 'primary' : 'default'} icon={<LineChartOutlined />} onClick={() => setVizMode('line')} /></Tooltip>
+                          </Space.Compact>
+                          <Button size="small" icon={<CopyOutlined />} onClick={() => messageApi.success('已复制到剪贴板')}>复制</Button>
+                          <Button size="small" icon={<DownloadOutlined />} onClick={() => messageApi.info('导出中...')}>导出</Button>
+                        </Space>
+                      }>
+                      {vizMode === 'table' ? (
+                        <Table columns={getColumns()} dataSource={result.rows.map((r, i) => ({ ...r, key: i }))}
+                          pagination={{ pageSize: 10, showTotal: t => `共 ${t} 条` }} size="small" scroll={{ x: 600 }} />
+                      ) : (
+                        <ReactEChartsCore echarts={echarts} option={getChartOption()} style={{ height: 350 }} />
+                      )}
+                    </Card>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: 60 }}>
+                    <SearchOutlined style={{ fontSize: 56, color: '#d9d9d9', marginBottom: 16 }} />
+                    <div><Text type="secondary">输入自然语言查询，或点击上方模板快速开始</Text></div>
                   </div>
-                </div>
-
-                {/* 查询模板 */}
-                <div className="content-card" style={{ marginTop: 16 }}>
-                  <Text strong>快速模板</Text>
-                  <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-                    {mockTemplates.map(tpl => (
-                      <Col xs={24} sm={12} md={8} key={tpl.id}>
-                        <Card size="small" hoverable className={selectedTemplate === tpl.id ? 'tpl-card-selected' : ''}
-                          onClick={() => handleTemplateQuery(tpl.id)}>
-                          <Card.Meta
-                            title={<Space><Tag color="blue">{tpl.category}</Tag>{tpl.title}</Space>}
-                            description={tpl.description}
-                          />
-                        </Card>
-                      </Col>
-                    ))}
-                  </Row>
-                </div>
-
-                {/* 查询结果 */}
-                <Spin spinning={loading} tip="正在生成SQL并执行查询...">
-                  <div style={{ marginTop: 16 }}>
-                    {result ? (
-                      <>
-                        {/* SQL展示 */}
-                        <Collapse ghost size="small" items={[{
-                          key: 'sql', label: <span><CodeOutlined /> 生成的SQL</span>,
-                          children: <div style={{ background: '#1F1F1F', color: '#a6e22e', padding: 12, borderRadius: 6, fontFamily: 'monospace', fontSize: 13, overflowX: 'auto' }}>
-                            {result.sql}
-                          </div>,
-                        }]} />
-
-                        {/* 可视化切换 */}
-                        <Card size="small" style={{ marginTop: 12 }}
-                          title={<Space>
-                            <span>查询结果 ({result.rowCount} 条)</span>
-                            <Tag color="blue">NL2SQL</Tag>
-                          </Space>}
-                          extra={
-                            <Space>
-                              <Space.Compact size="small">
-                                <Tooltip title="表格"><Button type={vizMode === 'table' ? 'primary' : 'default'} icon={<TableOutlined />} onClick={() => setVizMode('table')} /></Tooltip>
-                                <Tooltip title="柱状图"><Button type={vizMode === 'bar' ? 'primary' : 'default'} icon={<BarChartOutlined />} onClick={() => setVizMode('bar')} /></Tooltip>
-                                <Tooltip title="饼图"><Button type={vizMode === 'pie' ? 'primary' : 'default'} icon={<PieChartOutlined />} onClick={() => setVizMode('pie')} /></Tooltip>
-                                <Tooltip title="折线图"><Button type={vizMode === 'line' ? 'primary' : 'default'} icon={<LineChartOutlined />} onClick={() => setVizMode('line')} /></Tooltip>
-                              </Space.Compact>
-                              <Button size="small" icon={<CopyOutlined />} onClick={() => messageApi.success('已复制到剪贴板')}>复制</Button>
-                              <Button size="small" icon={<DownloadOutlined />} onClick={() => messageApi.info('导出中...')}>导出</Button>
-                            </Space>
-                          }>
-                          {vizMode === 'table' ? (
-                            <Table columns={getColumns()} dataSource={result.rows.map((r, i) => ({ ...r, key: i }))}
-                              pagination={{ pageSize: 10, showTotal: t => `共 ${t} 条` }} size="small" scroll={{ x: 600 }} />
-                          ) : (
-                            <ReactEChartsCore echarts={echarts} option={getChartOption()} style={{ height: 350 }} />
-                          )}
-                        </Card>
-                      </>
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: 60 }}>
-                        <SearchOutlined style={{ fontSize: 56, color: '#d9d9d9', marginBottom: 16 }} />
-                        <div><Text type="secondary">输入自然语言查询，或点击上方模板快速开始</Text></div>
-                      </div>
-                    )}
-                  </div>
-                </Spin>
-
-                {/* 查询历史 */}
-                {history.length > 0 && (
-                  <Card size="small" title={<span><HistoryOutlined /> 最近查询</span>} style={{ marginTop: 16 }}>
-                    {history.map((h, i) => (
-                      <Tag key={i} style={{ marginBottom: 8, cursor: 'pointer' }}
-                        onClick={() => setQueryText(h)}>{h}</Tag>
-                    ))}
-                  </Card>
                 )}
               </div>
-            ),
-          },
-          {
-            key: 'agent',
-            label: <span><BulbOutlined /> 审计 Agent</span>,
-            children: (
-              <div>
-                <Row gutter={16}>
-                  {/* 聊天区域 */}
-                  <Col span={18}>
-                    <Card size="small" title={<Space><RobotOutlined /> 审计智能助手</Space>}
-                      extra={<Button size="small" icon={<ClearOutlined />} onClick={() => setChatMessages([chatMessages[0]])}>清空对话</Button>}
-                      style={{ height: '70vh', display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12, maxHeight: 'calc(70vh - 120px)' }}>
-                        {chatMessages.map(msg => (
-                          <div key={msg.id} style={{ marginBottom: 16, display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 8 }}>
-                            <Avatar icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                              style={{ background: msg.role === 'user' ? '#1890ff' : '#E34D59' }} />
-                            <div style={{ maxWidth: '75%', background: msg.role === 'user' ? '#e6f7ff' : '#f6f6f6', padding: '10px 14px', borderRadius: 10, whiteSpace: 'pre-wrap' }}>
-                              <Text>{msg.content}</Text>
-                              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>{msg.time}</div>
-                            </div>
-                          </div>
-                        ))}
-                        <div ref={chatEndRef} />
-                      </div>
-                      <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: 12 }}>
-                        <Row gutter={8}>
-                          <Col flex="auto">
-                            <TextArea value={chatInput} onChange={e => setChatInput(e.target.value)}
-                              placeholder="输入你的问题，如：本月销售费用趋势怎么样？"
-                              onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
-                              rows={2} />
-                          </Col>
-                          <Col>
-                            <Button type="primary" icon={<SendOutlined />} onClick={handleChatSend}
-                              style={{ height: '100%' }}>发送</Button>
-                          </Col>
-                        </Row>
-                        <Space size={4} style={{ marginTop: 8 }}>
-                          <Tag style={{ cursor: 'pointer' }} onClick={() => setChatInput('各部门费用排名')}>各部门费用排名</Tag>
-                          <Tag style={{ cursor: 'pointer' }} onClick={() => setChatInput('查看风险预警')}>查看风险预警</Tag>
-                          <Tag style={{ cursor: 'pointer' }} onClick={() => setChatInput('生成本月审计摘要')}>生成本月审计摘要</Tag>
-                        </Space>
-                      </div>
-                    </Card>
-                  </Col>
+            </Spin>
 
-                  {/* Agent能力面板 */}
-                  <Col span={6}>
-                    <Card size="small" title="Agent 能力" style={{ marginBottom: 16 }}>
-                      <Space direction="vertical" style={{ width: '100%' }}>
-                        <Card size="small"><Text strong>📊 问数</Text><br /><Text type="secondary">自然语言查询和分析</Text></Card>
-                        <Card size="small"><Text strong>📈 分析</Text><br /><Text type="secondary">统计分析和趋势检测</Text></Card>
-                        <Card size="small"><Text strong>📝 报告</Text><br /><Text type="secondary">自动生成审计报告</Text></Card>
-                        <Card size="small"><Text strong>🔄 多轮</Text><br /><Text type="secondary">上下文理解和追问</Text></Card>
-                      </Space>
-                    </Card>
-                    <Card size="small" title="快捷操作">
-                      <Space direction="vertical" style={{ width: '100%' }}>
-                        <Button block icon={<ThunderboltOutlined />} onClick={() => messageApi.info('正在生成本月审计概况...')}>本月审计概况</Button>
-                        <Button block icon={<WarningOutlined />} onClick={() => navigate('/risk')}>查看风险预警</Button>
-                        <Button block icon={<StarOutlined />} onClick={() => messageApi.info('正在生成摘要报告...')}>生成摘要报告</Button>
-                      </Space>
-                    </Card>
-                  </Col>
-                </Row>
+            {/* 查询历史 */}
+            {history.length > 0 && (
+              <Card size="small" title={<span><HistoryOutlined /> 最近查询</span>} style={{ marginTop: 16 }}>
+                {history.map((h, i) => (
+                  <Tag key={i} style={{ marginBottom: 8, cursor: 'pointer' }}
+                    onClick={() => setQueryText(h)}>{h}</Tag>
+                ))}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* 审计 Agent */}
+        {tab === 'agent' && (
+          <div style={{ position: 'relative' }}>
+            {/* 聊天区域 - 全宽 */}
+            <Card size="small" title={<Space><RobotOutlined /> 审计智能助手</Space>}
+              extra={
+                <Space>
+                  <Tooltip title="示例问题">
+                    <Button size="small" icon={<BulbOutlined />}
+                      onClick={() => setAgentPanelOpen(!agentPanelOpen)}
+                      type={agentPanelOpen ? 'primary' : 'default'} />
+                  </Tooltip>
+                  <Button size="small" icon={<ClearOutlined />} onClick={() => setChatMessages([chatMessages[0]])}>清空对话</Button>
+                </Space>
+              }
+              style={{ height: '70vh', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12, maxHeight: 'calc(70vh - 120px)' }}>
+                {chatMessages.map(msg => (
+                  <div key={msg.id} style={{ marginBottom: 16, display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 8 }}>
+                    <Avatar icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                      style={{ background: msg.role === 'user' ? '#1890ff' : '#D7011D' }} />
+                    <div style={{ maxWidth: '75%', background: msg.role === 'user' ? '#e6f7ff' : '#f6f6f6', padding: '10px 14px', borderRadius: 10, whiteSpace: 'pre-wrap' }}>
+                      <Text>{msg.content}</Text>
+                      {msg.result && (
+                        <div style={{ marginTop: 8 }}>
+                          <Table
+                            columns={msg.result.columns.map(c => ({ title: c, dataIndex: c, key: c, ellipsis: true }))}
+                            dataSource={msg.result.rows.map((r, i) => ({ ...r, key: i }))}
+                            pagination={false} size="small" scroll={{ x: 500 }}
+                            style={{ marginTop: 8 }}
+                          />
+                          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>共 {msg.result.rowCount} 条结果</div>
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>{msg.time}</div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
               </div>
-            ),
-          },
-          {
-            key: 'visualization',
-            label: <span><BarChartOutlined /> 可视化</span>,
-            children: (
-              <div>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Card size="small" title="📊 费用结构分析" extra={<Tag color="blue">自动推荐</Tag>}>
-                      <ReactEChartsCore echarts={echarts} option={{
-                        tooltip: { trigger: 'axis' },
-                        grid: { left: 56, right: 16, top: 24, bottom: 36 },
-                        xAxis: { type: 'category', data: ['销售部', '研发部', '采购部', '财务部', '行政部', 'IT部', '生产部'], axisLabel: { fontSize: 11 } },
-                        yAxis: { type: 'value', axisLabel: { fontSize: 11 }, nameTextStyle: { fontSize: 10 } },
-                        series: [
-                          { name: '费用总额(万)', type: 'bar', data: [285.6, 234.1, 156.3, 89.2, 67.8, 145.0, 92.4], barMaxWidth: 36, itemStyle: { borderRadius: [6, 6, 0, 0], color: '#E34D59' } },
-                          { name: '预算(万)', type: 'bar', data: [250, 280, 150, 100, 80, 140, 95], barMaxWidth: 36, itemStyle: { borderRadius: [6, 6, 0, 0], color: '#1890ff' } },
-                        ],
-                        legend: { bottom: 0 },
-                      }} style={{ height: 350 }} />
-                    </Card>
+              <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: 12 }}>
+                <Row gutter={8} align="middle">
+                  <Col>
+                    <Upload beforeUpload={(file) => {
+                      messageApi.info(`已上传: ${file.name}，将作为分析参考`);
+                      return false;
+                    }} showUploadList={false} accept=".xlsx,.xls,.csv,.png,.jpg,.pdf">
+                      <Tooltip title="上传Excel/截图作为分析参考">
+                        <Button icon={<PaperClipOutlined />} size="small" />
+                      </Tooltip>
+                    </Upload>
                   </Col>
-                  <Col span={12}>
-                    <Card size="small" title="🥧 审计发现分类" extra={<Tag color="blue">自动推荐</Tag>}>
-                      <ReactEChartsCore echarts={echarts} option={{
-                        tooltip: { trigger: 'item' },
-                        legend: { bottom: 0 },
-                        series: [{
-                          type: 'pie', radius: ['40%', '70%'],
-                          data: [
-                            { value: 35, name: '财务合规', itemStyle: { color: '#E34D59' } },
-                            { value: 25, name: '采购流程', itemStyle: { color: '#fa8c16' } },
-                            { value: 20, name: '资产管理', itemStyle: { color: '#1890ff' } },
-                            { value: 12, name: 'IT控制', itemStyle: { color: '#52c41a' } },
-                            { value: 8, name: '其他', itemStyle: { color: '#722ed1' } },
-                          ],
-                          label: { formatter: '{b}\n{d}%' },
-                        }],
-                      }} style={{ height: 350 }} />
-                    </Card>
+                  <Col flex="auto">
+                    <TextArea value={chatInput} onChange={e => setChatInput(e.target.value)}
+                      placeholder="试试：本月差旅费环比变化多少？"
+                      onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
+                      rows={2} />
+                  </Col>
+                  <Col>
+                    <Button type="primary" icon={<SendOutlined />} onClick={handleChatSend}
+                      style={{ height: 62 }}>发送</Button>
                   </Col>
                 </Row>
-                <Row gutter={16} style={{ marginTop: 16 }}>
-                  <Col span={24}>
-                    <Card size="small" title="📈 近6月整改完成率趋势" extra={<Tag color="green">趋势分析</Tag>}>
-                      <ReactEChartsCore echarts={echarts} option={{
-                        tooltip: { trigger: 'axis' },
-                        grid: { left: 54, right: 20, top: 24, bottom: 24 },
-                        xAxis: { type: 'category', data: ['1月', '2月', '3月', '4月', '5月', '6月'], boundaryGap: false, axisLabel: { fontSize: 11 } },
-                        yAxis: { type: 'value', name: '%', axisLabel: { fontSize: 11 }, nameTextStyle: { fontSize: 10 }, min: 0, max: 100 },
-                        series: [{
-                          type: 'line', smooth: true, data: [45, 52, 58, 65, 72, 78],
-                          symbol: 'circle', symbolSize: 6,
-                          areaStyle: { color: 'rgba(227,77,89,0.12)' },
-                          lineStyle: { color: '#E34D59', width: 3 },
-                          itemStyle: { color: '#E34D59' },
-                        }],
-                      }} style={{ height: 250 }} />
-                    </Card>
-                  </Col>
-                </Row>
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <BulbOutlined style={{ color: '#faad14', fontSize: 12 }} />
+                  <Text type="secondary" style={{ fontSize: 11 }}>试试问：</Text>
+                  <Tag style={{ cursor: 'pointer', fontSize: 11 }} onClick={() => quickSend('各部门费用排名')}>📊 费用排名</Tag>
+                  <Tag style={{ cursor: 'pointer', fontSize: 11 }} onClick={() => quickSend('查看风险预警')}>⚠️ 风险预警</Tag>
+                  <Tag style={{ cursor: 'pointer', fontSize: 11 }} onClick={() => quickSend('生成本月审计摘要')}>📋 月度摘要</Tag>
+                </div>
               </div>
-            ),
-          },
-        ]} />
+            </Card>
+
+            {/* 悬浮Agent能力面板 */}
+            {agentPanelOpen && (
+              <div style={{
+                position: 'absolute', top: 48, right: 0, width: 220, zIndex: 100,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.12)', borderRadius: 8,
+              }}>
+                <Card size="small" title={
+                  <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                    <span>💡 示例问题</span>
+                    <Button type="link" size="small" icon={<ClearOutlined />}
+                      onClick={() => setAgentPanelOpen(false)} style={{ padding: 0, height: 'auto' }} />
+                  </Space>
+                }>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Card size="small" hoverable onClick={() => { quickSend('各部门费用排名'); setAgentPanelOpen(false); }}>
+                      <Text strong>🔍 问数</Text>
+                      <br /><Text type="secondary" style={{ fontSize: 12 }}>各部门费用排名</Text>
+                    </Card>
+                    <Card size="small" hoverable onClick={() => { quickSend('销售费用为什么超预算30%？分析一下原因'); setAgentPanelOpen(false); }}>
+                      <Text strong>📈 分析</Text>
+                      <br /><Text type="secondary" style={{ fontSize: 12 }}>费用超预算原因分析</Text>
+                    </Card>
+                    <Card size="small" hoverable onClick={() => { quickSend('查看风险预警'); setAgentPanelOpen(false); }}>
+                      <Text strong>⚠️ 风险</Text>
+                      <br /><Text type="secondary" style={{ fontSize: 12 }}>查看风险预警</Text>
+                    </Card>
+                    <Card size="small" hoverable onClick={() => { quickSend('生成本月审计摘要报告'); setAgentPanelOpen(false); }}>
+                      <Text strong>📝 报告</Text>
+                      <br /><Text type="secondary" style={{ fontSize: 12 }}>生成本月审计摘要</Text>
+                    </Card>
+                  </Space>
+                </Card>
+              </div>
+            )}
+          </div>
+        )}
       </Content>
     </Layout>
   );
